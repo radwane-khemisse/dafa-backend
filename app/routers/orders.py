@@ -12,6 +12,7 @@ from app.services.capi_snap import send_snap_purchase
 from app.services.capi_tiktok import send_tiktok_purchase
 from app.services.catalog import calculate_item
 from app.services.phone import PhoneValidationError, normalize_ksa_phone
+from app.services.ip_quality import client_ip_from_request, validate_ip
 from app.services.sheets import send_order_to_sheet
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -34,7 +35,8 @@ def create_order(
     delivery_fee = 0
     discount = 0
     total = subtotal + delivery_fee - discount
-    client_ip = payload.client.ip or request.client.host if request.client else payload.client.ip
+    client_ip = payload.client.ip or client_ip_from_request(request)
+    ip_validation = validate_ip(client_ip, get_settings())
     user_agent = payload.client.user_agent or request.headers.get("user-agent")
 
     order = Order(
@@ -52,7 +54,12 @@ def create_order(
         source_url=payload.client.landing_page,
         referrer=payload.client.referrer,
         user_agent=user_agent,
-        ip_address=client_ip,
+        ip_address=ip_validation.ip_address,
+        ip_country_code=ip_validation.country_code,
+        ip_city=ip_validation.city,
+        ip_is_vpn=ip_validation.is_vpn,
+        ip_is_valid_ksa=ip_validation.is_valid_ksa,
+        ip_validation_reason=ip_validation.reason,
         fbp=payload.client.fbp,
         fbc=payload.client.fbc,
         ttp=payload.client.ttp,

@@ -32,8 +32,23 @@ class Settings(BaseSettings):
     enable_capi: bool = True
     enable_sheets_webhook: bool = True
 
+    admin_username: str | None = None
+    admin_password: str | None = None
+
+    maxmind_city_db_path: str | None = None
+    maxmind_country_db_path: str | None = None
+    maxmind_anonymous_ip_db_path: str | None = None
+    maxmind_account_id: str | None = None
+    maxmind_license_key: str | None = None
+    maxmind_edition_ids: str = "GeoLite2-City GeoLite2-Country GeoLite2-Anonymous-IP"
+
+    vpn_check_url: str | None = None
+    vpn_check_api_key: str | None = None
+    vpn_check_api_key_header: str = "Authorization"
+    analytics_target_country: str = "SA"
+    analytics_allow_private_ips: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
