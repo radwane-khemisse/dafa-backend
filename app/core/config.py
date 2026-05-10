@@ -22,12 +22,13 @@ class Settings(BaseSettings):
 
     tiktok_pixel_code: str | None = None
     tiktok_access_token: str | None = None
-    tiktok_events_api_url: str = "https://business-api.tiktok.com/open_api/v1.3/event/track/"
+    tiktok_events_api_url: str = "https://business-api.tiktok.com/open_api/v1.3/pixel/track/"
     tiktok_test_event_code: str | None = None
     tiktok_phone_hash_mode: str = Field(default="e164", pattern="^(e164|digits)$")
 
     snap_pixel_id: str | None = None
     snap_access_token: str | None = None
+    snap_test_event_code: str | None = None
 
     enable_capi: bool = True
     enable_sheets_webhook: bool = True

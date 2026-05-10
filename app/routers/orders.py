@@ -14,6 +14,7 @@ from app.services.catalog import calculate_item
 from app.services.phone import PhoneValidationError, normalize_ksa_phone
 from app.services.ip_quality import client_ip_from_request, validate_ip
 from app.services.sheets import send_order_to_sheet
+from app.services.tracking import purchase_event_id
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -70,12 +71,13 @@ def create_order(
         utm_campaign=payload.client.utm_campaign,
         utm_content=payload.client.utm_content,
         utm_term=payload.client.utm_term,
-        event_id=payload.event_id,
+        event_id="PENDING",
         upsell_accepted=bool(payload.upsell and payload.upsell.accepted),
     )
     db.add(order)
     db.flush()
     order.public_order_id = f"dafa-{datetime.now(UTC):%Y%m%d}-{order.id:04d}"
+    order.event_id = purchase_event_id(order.public_order_id)
 
     for item in calculated_items:
         order_item = {key: value for key, value in item.items() if key != "sku"}
@@ -84,14 +86,15 @@ def create_order(
     db.commit()
     db.refresh(order)
 
-    integration_payload = _serialize_order(order, calculated_items)
+    integration_payload = _serialize_order(order, calculated_items, payload.client.model_dump())
     background_tasks.add_task(run_integrations, order.id, integration_payload)
 
-    return OrderCreateResponse(ok=True, order_id=order.public_order_id, status=order.status)
+    return OrderCreateResponse(ok=True, order_id=order.public_order_id, purchase_event_id=order.event_id, status=order.status)
 
 
-def _serialize_order(order: Order, items: list[dict]) -> dict:
+def _serialize_order(order: Order, items: list[dict], client: dict | None = None) -> dict:
     created_at = order.created_at or datetime.now(UTC)
+    client = client or {}
     return {
         "id": order.id,
         "public_order_id": order.public_order_id,
@@ -116,9 +119,11 @@ def _serialize_order(order: Order, items: list[dict]) -> dict:
         "ip_address": order.ip_address,
         "fbp": order.fbp,
         "fbc": order.fbc,
+        "fbclid": client.get("fbclid"),
         "ttp": order.ttp,
         "ttclid": order.ttclid,
         "sc_click_id": order.sc_click_id,
+        "sc_cookie1": client.get("sc_cookie1"),
         "utm_source": order.utm_source,
         "utm_medium": order.utm_medium,
         "utm_campaign": order.utm_campaign,
@@ -160,7 +165,7 @@ def run_integrations(order_id: int, payload: dict) -> None:
             order.capi_meta_sent_at = datetime.now(UTC)
 
         tiktok_ok, tiktok_status, tiktok_body = send_tiktok_purchase(payload, settings)
-        _log_tracking(db, order_id, "tiktok", "Purchase", payload["event_id"], tiktok_ok, tiktok_status, tiktok_body)
+        _log_tracking(db, order_id, "tiktok", "CompletePayment", payload["event_id"], tiktok_ok, tiktok_status, tiktok_body)
         if tiktok_ok:
             order.capi_tiktok_sent_at = datetime.now(UTC)
 

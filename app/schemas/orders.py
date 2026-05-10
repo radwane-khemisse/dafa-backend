@@ -30,9 +30,11 @@ class ClientIn(BaseModel):
     ip: str | None = None
     fbp: str | None = None
     fbc: str | None = None
+    fbclid: str | None = None
     ttp: str | None = None
     ttclid: str | None = None
     sc_click_id: str | None = None
+    sc_cookie1: str | None = None
     utm_source: str | None = None
     utm_medium: str | None = None
     utm_campaign: str | None = None
@@ -53,5 +55,5 @@ class OrderCreate(BaseModel):
 class OrderCreateResponse(BaseModel):
     ok: bool
     order_id: str
+    purchase_event_id: str
     status: str
-
