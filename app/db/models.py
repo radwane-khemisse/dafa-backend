@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -67,7 +67,7 @@ class OrderItem(Base):
     title_ar: Mapped[str] = mapped_column(String(255))
     offer_id: Mapped[str] = mapped_column(String(40))
     quantity: Mapped[int] = mapped_column(Integer)
-    unit_price: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[float] = mapped_column(Float)
     total_price: Mapped[int] = mapped_column(Integer)
 
     order: Mapped[Order] = relationship(back_populates="items")

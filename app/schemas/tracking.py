@@ -27,7 +27,7 @@ class TrackingItemIn(BaseModel):
     product_id: str
     title_ar: str | None = None
     quantity: int = 1
-    unit_price: int | None = None
+    unit_price: float | None = None
     total_price: int | None = None
 
 

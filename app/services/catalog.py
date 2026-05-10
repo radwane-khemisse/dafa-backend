@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+from typing import Iterable
+
+from app.schemas.orders import OrderItemIn
 
 
 @dataclass(frozen=True)
@@ -16,6 +19,14 @@ class Product:
     name_ar: str
     name_en: str
     sku: str
+
+
+@dataclass(frozen=True)
+class Pack:
+    id: str
+    offer_id: str
+    product_ids: tuple[str, ...]
+    total_price: int
 
 
 PRODUCTS: dict[str, Product] = {
@@ -50,6 +61,37 @@ OFFERS: dict[str, Offer] = {
     "upsell_99": Offer(id="upsell_99", quantity=1, total_price=99, label_ar="عرض خاص"),
 }
 
+PACKS: dict[str, Pack] = {
+    "prep-and-storage-pack": Pack(
+        id="prep-and-storage-pack",
+        offer_id="pack_pair",
+        product_ids=("vegetable_cutter", "rice_dispenser"),
+        total_price=318,
+    ),
+    "clean-counter-pack": Pack(
+        id="clean-counter-pack",
+        offer_id="pack_pair",
+        product_ids=("vegetable_cutter", "dish_drying_rack"),
+        total_price=318,
+    ),
+}
+
+
+def calculate_items(items: list[OrderItemIn]) -> list[dict]:
+    calculated: list[dict] = []
+    pack_groups: dict[str, list[OrderItemIn]] = {}
+
+    for item in items:
+        if item.pack_id:
+            pack_groups.setdefault(item.pack_id, []).append(item)
+        else:
+            calculated.append(calculate_item(item.product_id, item.offer_id))
+
+    for pack_id, pack_items in pack_groups.items():
+        calculated.extend(calculate_pack_items(pack_id, pack_items))
+
+    return calculated
+
 
 def calculate_item(product_id: str, offer_id: str) -> dict:
     product = PRODUCTS.get(product_id)
@@ -58,12 +100,63 @@ def calculate_item(product_id: str, offer_id: str) -> dict:
         raise ValueError(f"Unknown product_id: {product_id}")
     if offer is None:
         raise ValueError(f"Unknown offer_id: {offer_id}")
+    if offer.id == "pack_pair":
+        raise ValueError("pack_pair requires a valid pack_id")
+    return _item_payload(product, offer.id, offer.quantity, _unit_price(offer.total_price, offer.quantity), offer.total_price)
+
+
+def calculate_pack_items(pack_id: str, items: Iterable[OrderItemIn]) -> list[dict]:
+    pack = PACKS.get(pack_id)
+    if pack is None:
+        raise ValueError(f"Unknown pack_id: {pack_id}")
+
+    pack_items = list(items)
+    received_ids = tuple(item.product_id for item in pack_items)
+    if set(received_ids) != set(pack.product_ids) or len(received_ids) != len(pack.product_ids):
+        raise ValueError(f"Invalid products for pack_id: {pack_id}")
+
+    if any(item.offer_id != pack.offer_id for item in pack_items):
+        raise ValueError(f"Invalid offer for pack_id: {pack_id}")
+
+    line_totals = _split_total(pack.total_price, len(pack_items))
+    return [
+        _item_payload(
+            product=_require_product(item.product_id),
+            offer_id=pack.offer_id,
+            quantity=1,
+            unit_price=line_totals[index],
+            total_price=line_totals[index],
+        )
+        for index, item in enumerate(pack_items)
+    ]
+
+
+def _require_product(product_id: str) -> Product:
+    product = PRODUCTS.get(product_id)
+    if product is None:
+        raise ValueError(f"Unknown product_id: {product_id}")
+    return product
+
+
+def _item_payload(product: Product, offer_id: str, quantity: int, unit_price: float, total_price: int) -> dict:
     return {
         "product_id": product.id,
         "title_ar": product.name_ar,
         "sku": product.sku,
-        "offer_id": offer.id,
-        "quantity": offer.quantity,
-        "unit_price": round(offer.total_price / offer.quantity),
-        "total_price": offer.total_price,
+        "offer_id": offer_id,
+        "quantity": quantity,
+        "unit_price": unit_price,
+        "total_price": total_price,
     }
+
+
+def _unit_price(total_price: int, quantity: int) -> float:
+    return round(total_price / quantity, 2)
+
+
+def _split_total(total: int, count: int) -> list[int]:
+    if count <= 0:
+        return []
+    base = total // count
+    remainder = total - base * count
+    return [base + (1 if index < remainder else 0) for index in range(count)]
