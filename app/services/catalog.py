@@ -46,6 +46,7 @@ OFFERS: dict[str, Offer] = {
     "one": Offer(id="one", quantity=1, total_price=199, label_ar="قطعة واحدة"),
     "two": Offer(id="two", quantity=2, total_price=279, label_ar="قطعتين"),
     "three": Offer(id="three", quantity=3, total_price=349, label_ar="3 قطع"),
+    "pack_pair": Offer(id="pack_pair", quantity=1, total_price=159, label_ar="ضمن باقة"),
     "upsell_99": Offer(id="upsell_99", quantity=1, total_price=99, label_ar="عرض خاص"),
 }
 
