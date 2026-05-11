@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
     api_base_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
+    cors_origins: str | None = None
     database_url: str = "postgresql+psycopg://dafakitchen:dafakitchen@localhost:5432/dafa_kitchen"
 
     order_webhook_url: str | None = None
@@ -48,6 +49,15 @@ class Settings(BaseSettings):
     vpn_check_api_key_header: str = "Authorization"
     analytics_target_country: str = "SA"
     analytics_allow_private_ips: bool = False
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        if value.startswith("postgres://"):
+            return value.replace("postgres://", "postgresql+psycopg://", 1)
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+psycopg://", 1)
+        return value
 
 
 @lru_cache

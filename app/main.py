@@ -12,10 +12,17 @@ settings = get_settings()
 
 app = FastAPI(title="Dafa Kitchen API", version="1.0.0")
 
+configured_origins = {
+    origin.strip()
+    for origin in (settings.cors_origins or "").split(",")
+    if origin.strip()
+}
+
 allowed_origins = {
     "http://localhost:3000",
     "https://dafakitchen.shop",
     settings.frontend_url,
+    *configured_origins,
 }
 
 app.add_middleware(
