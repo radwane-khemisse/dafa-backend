@@ -105,14 +105,15 @@ def dashboard(
         .limit(8)
     ).all()
 
+    campaign_expr = func.coalesce(AnalyticsEvent.utm_campaign, "direct").label("campaign")
     top_campaigns = db.execute(
         select(
-            func.coalesce(AnalyticsEvent.utm_campaign, "direct").label("campaign"),
+            campaign_expr,
             func.count().label("events"),
             func.count(distinct(AnalyticsEvent.session_id)).label("visitors"),
         )
         .where(*event_filter)
-        .group_by(func.coalesce(AnalyticsEvent.utm_campaign, "direct"))
+        .group_by(campaign_expr)
         .order_by(desc(func.count()))
         .limit(8)
     ).all()
