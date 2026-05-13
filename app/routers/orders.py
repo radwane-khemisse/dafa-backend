@@ -11,6 +11,7 @@ from app.services.capi_meta import send_meta_purchase
 from app.services.capi_snap import send_snap_purchase
 from app.services.capi_tiktok import send_tiktok_purchase
 from app.services.catalog import calculate_items
+from app.services.catalog_visibility import assert_order_items_visible
 from app.services.phone import PhoneValidationError, normalize_ksa_phone
 from app.services.ip_quality import client_ip_from_request, validate_ip
 from app.services.sheets import send_order_to_sheet
@@ -28,6 +29,7 @@ def create_order(
 ) -> OrderCreateResponse:
     try:
         phone_e164, phone_digits = normalize_ksa_phone(payload.phone)
+        assert_order_items_visible(db, payload.items)
         calculated_items = calculate_items(payload.items)
     except (PhoneValidationError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -3,15 +3,22 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from pydantic import BaseModel
 from sqlalchemy import case, desc, distinct, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
 from app.db.models import AnalyticsEvent, Order, OrderItem
 from app.db.session import get_db
+from app.services.catalog import PACKS, PRODUCTS
+from app.services.catalog_visibility import get_catalog_visibility, set_catalog_hidden
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBasic()
+
+
+class CatalogVisibilityUpdate(BaseModel):
+    hidden: bool
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
@@ -185,6 +192,53 @@ def orders(
         .limit(200)
     ).all()
     return {"orders": _serialize_orders(rows)}
+
+
+@router.get("/catalog")
+def catalog(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    visibility = get_catalog_visibility(db)
+    products = [
+        {
+            "type": "product",
+            "id": product.id,
+            "slug": product.slug,
+            "name_ar": product.name_ar,
+            "name_en": product.name_en,
+            "hidden": visibility.get(("product", product.id), False),
+        }
+        for product in PRODUCTS.values()
+    ]
+    packs = [
+        {
+            "type": "pack",
+            "id": pack.id,
+            "slug": pack.id,
+            "name_ar": pack.id.replace("-", " "),
+            "name_en": pack.id.replace("-", " ").title(),
+            "hidden": visibility.get(("pack", pack.id), False),
+            "product_ids": list(pack.product_ids),
+        }
+        for pack in PACKS.values()
+    ]
+    return {"products": products, "packs": packs}
+
+
+@router.post("/catalog/{item_type}/{item_id}/visibility")
+def update_catalog_visibility(
+    item_type: str,
+    item_id: str,
+    payload: CatalogVisibilityUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        row = set_catalog_hidden(db, item_type, item_id, payload.hidden)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"type": row.item_type, "id": row.item_id, "hidden": row.hidden}
 
 
 def _serialize_orders(orders: list[Order]) -> list[dict]:

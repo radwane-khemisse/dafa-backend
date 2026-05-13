@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.routers.admin import router as admin_router
 from app.routers.analytics import router as analytics_router
+from app.routers.catalog import router as catalog_router
 from app.routers.health import router as health_router
 from app.routers.orders import router as orders_router
 from app.routers.tracking import router as tracking_router
@@ -37,4 +38,5 @@ app.include_router(health_router)
 app.include_router(orders_router)
 app.include_router(analytics_router)
 app.include_router(tracking_router)
+app.include_router(catalog_router)
 app.include_router(admin_router)
