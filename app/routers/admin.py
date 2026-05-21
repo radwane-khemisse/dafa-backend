@@ -17,7 +17,7 @@ from app.services.catalog_visibility import (
     set_catalog_hidden,
     set_catalog_market_codes,
 )
-from app.services.markets import list_market_settings, set_market_settings
+from app.services.markets import list_market_settings, normalize_market_code, set_market_settings
 from app.services.offer_pricing import admin_pack_prices, admin_product_offers, set_offer_market_price, set_pack_market_price
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -73,10 +73,23 @@ def _date_range(start: datetime | None, end: datetime | None) -> tuple[datetime,
     return range_start, range_end
 
 
+def _market_filter(market_codes: list[str] | None = Query(default=None, alias="market")) -> list[str] | None:
+    if not market_codes:
+        return None
+    codes: list[str] = []
+    for value in market_codes:
+        for code in value.split(","):
+            code = code.strip()
+            if code:
+                codes.append(normalize_market_code(code))
+    return sorted(set(codes)) or None
+
+
 @router.get("/dashboard")
 def dashboard(
     start: datetime | None = Query(default=None),
     end: datetime | None = Query(default=None),
+    market_codes: list[str] | None = Depends(_market_filter),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ) -> dict:
@@ -89,6 +102,9 @@ def dashboard(
         Order.created_at >= range_start,
         Order.created_at <= range_end,
     )
+    if market_codes:
+        order_filter = (*order_filter, Order.market_code.in_(market_codes))
+        event_filter = (*event_filter, AnalyticsEvent.market_code.in_(market_codes))
 
     clicks = db.scalar(select(func.count()).select_from(AnalyticsEvent).where(*event_filter, AnalyticsEvent.event_name == "Click")) or 0
     product_views = db.scalar(select(func.count()).select_from(AnalyticsEvent).where(*event_filter, AnalyticsEvent.event_name == "ViewProduct")) or 0
@@ -201,11 +217,14 @@ def orders(
     start: datetime | None = Query(default=None),
     end: datetime | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
+    market_codes: list[str] | None = Depends(_market_filter),
     db: Session = Depends(get_db),
     _: None = Depends(require_admin),
 ) -> dict:
     range_start, range_end = _date_range(start, end)
     filters = [Order.created_at >= range_start, Order.created_at <= range_end]
+    if market_codes:
+        filters.append(Order.market_code.in_(market_codes))
     if status_filter:
         filters.append(Order.status == status_filter)
     rows = db.scalars(

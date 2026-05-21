@@ -28,12 +28,14 @@ def create_tracking_event(
     ip_validation = validate_ip(client_ip, settings)
     user_agent = payload.client.user_agent or request.headers.get("user-agent")
     source_url = payload.client.source_url or payload.client.landing_page or settings.frontend_url
+    market_code = _market_code_from_url(source_url)
 
     analytics_event = AnalyticsEvent(
         event_name=payload.event_name,
         event_id=payload.event_id,
         session_id=payload.session_id,
         product_id=payload.product_id or (payload.content_ids[0] if payload.content_ids else None),
+        market_code=market_code,
         path=source_url,
         referrer=payload.client.referrer,
         user_agent=user_agent,
@@ -57,7 +59,7 @@ def create_tracking_event(
     phone_digits = None
     if payload.phone:
         try:
-            phone_e164, phone_digits = normalize_gulf_phone(payload.phone, _market_code_from_url(source_url))
+            phone_e164, phone_digits = normalize_gulf_phone(payload.phone, market_code)
         except PhoneValidationError:
             phone_e164 = None
             phone_digits = None

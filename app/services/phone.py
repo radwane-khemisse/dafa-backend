@@ -7,6 +7,16 @@ class PhoneValidationError(ValueError):
     pass
 
 
+MOBILE_RULES = {
+    "ksa": {"pattern": r"5\d{8}", "example": "05XXXXXXXX"},
+    "kwt": {"pattern": r"(?:41|5|6|9)\d{6}", "example": "5XXXXXXX"},
+    "uae": {"pattern": r"5\d{8}", "example": "05XXXXXXXX"},
+    "qat": {"pattern": r"[3567]\d{7}", "example": "5XXXXXXX"},
+    "bhr": {"pattern": r"3\d{7}", "example": "3XXXXXXX"},
+    "omn": {"pattern": r"[79]\d{7}", "example": "9XXXXXXX"},
+}
+
+
 def normalize_ksa_phone(raw_phone: str) -> tuple[str, str]:
     digits = re.sub(r"\D+", "", raw_phone or "")
 
@@ -31,10 +41,8 @@ def normalize_ksa_phone(raw_phone: str) -> tuple[str, str]:
 
 def normalize_gulf_phone(raw_phone: str, market_code: str | None = None) -> tuple[str, str]:
     code = normalize_market_code(market_code)
-    if code == "ksa":
-        return normalize_ksa_phone(raw_phone)
-
     market = GULF_MARKETS[code]
+    rule = MOBILE_RULES[code]
     digits = re.sub(r"\D+", "", raw_phone or "")
     country_prefix = market.phone_country_code
 
@@ -48,8 +56,8 @@ def normalize_gulf_phone(raw_phone: str, market_code: str | None = None) -> tupl
         digits = country_prefix + digits
 
     local = digits[len(country_prefix) :]
-    if not digits.startswith(country_prefix) or len(local) != market.local_phone_digits:
-        raise PhoneValidationError(f"Phone must be a valid {market.country_name_en} mobile number.")
+    if not digits.startswith(country_prefix) or len(local) != market.local_phone_digits or not re.fullmatch(rule["pattern"], local):
+        raise PhoneValidationError(f"Phone must be a valid {market.country_name_en} mobile number, for example {rule['example']}.")
     if len(set(local)) <= 2:
         raise PhoneValidationError("Phone number appears invalid.")
 
