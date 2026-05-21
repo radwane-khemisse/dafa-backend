@@ -9,7 +9,7 @@ class PhoneValidationError(ValueError):
 
 MOBILE_RULES = {
     "ksa": {"pattern": r"5\d{8}", "example": "05XXXXXXXX"},
-    "kwt": {"pattern": r"(?:41|5|6|9)\d{6}", "example": "5XXXXXXX"},
+    "kwt": {"pattern": r"(?:41\d{6}|[569]\d{7})", "example": "5XXXXXXX"},
     "uae": {"pattern": r"5\d{8}", "example": "05XXXXXXXX"},
     "qat": {"pattern": r"[3567]\d{7}", "example": "5XXXXXXX"},
     "bhr": {"pattern": r"3\d{7}", "example": "3XXXXXXX"},
