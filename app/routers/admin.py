@@ -18,6 +18,7 @@ from app.services.catalog_visibility import (
     set_catalog_market_codes,
 )
 from app.services.markets import list_market_settings, set_market_settings
+from app.services.offer_pricing import admin_product_offers, set_offer_market_price
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBasic()
@@ -34,6 +35,11 @@ class MarketStoreUpdate(BaseModel):
 
 class CatalogMarketsUpdate(BaseModel):
     market_codes: list[str]
+
+
+class OfferMarketPriceUpdate(BaseModel):
+    market_code: str
+    price: int
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
@@ -223,6 +229,7 @@ def catalog(
             "name_en": product.name_en,
             "hidden": visibility.get(("product", product.id), False),
             "market_codes": item_market_codes(db, "product", product.id),
+            "offers": admin_product_offers(db, product.id),
         }
         for product in PRODUCTS.values()
     ]
@@ -284,6 +291,26 @@ def update_catalog_markets(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"type": item_type, "id": item_id, "market_codes": item_market_codes(db, item_type, item_id)}
+
+
+@router.post("/catalog/products/{product_id}/offers/{offer_id}/prices")
+def update_offer_market_price(
+    product_id: str,
+    offer_id: str,
+    payload: OfferMarketPriceUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        row = set_offer_market_price(db, product_id, offer_id, payload.market_code, payload.price)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "product_id": row.product_id,
+        "offer_id": row.offer_id,
+        "market_code": row.market_code,
+        "price": row.price,
+    }
 
 
 def _serialize_orders(orders: list[Order]) -> list[dict]:

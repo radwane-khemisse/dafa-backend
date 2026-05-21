@@ -77,7 +77,10 @@ PACKS: dict[str, Pack] = {
 }
 
 
-def calculate_items(items: list[OrderItemIn]) -> list[dict]:
+OfferPriceMap = dict[str, dict[str, int]]
+
+
+def calculate_items(items: list[OrderItemIn], offer_prices: OfferPriceMap | None = None) -> list[dict]:
     calculated: list[dict] = []
     pack_groups: dict[str, list[OrderItemIn]] = {}
 
@@ -85,7 +88,7 @@ def calculate_items(items: list[OrderItemIn]) -> list[dict]:
         if item.pack_id:
             pack_groups.setdefault(item.pack_id, []).append(item)
         else:
-            calculated.append(calculate_item(item.product_id, item.offer_id))
+            calculated.append(calculate_item(item.product_id, item.offer_id, offer_prices))
 
     for pack_id, pack_items in pack_groups.items():
         calculated.extend(calculate_pack_items(pack_id, pack_items))
@@ -93,7 +96,7 @@ def calculate_items(items: list[OrderItemIn]) -> list[dict]:
     return calculated
 
 
-def calculate_item(product_id: str, offer_id: str) -> dict:
+def calculate_item(product_id: str, offer_id: str, offer_prices: OfferPriceMap | None = None) -> dict:
     product = PRODUCTS.get(product_id)
     offer = OFFERS.get(offer_id)
     if product is None:
@@ -102,7 +105,8 @@ def calculate_item(product_id: str, offer_id: str) -> dict:
         raise ValueError(f"Unknown offer_id: {offer_id}")
     if offer.id == "pack_pair":
         raise ValueError("pack_pair requires a valid pack_id")
-    return _item_payload(product, offer.id, offer.quantity, _unit_price(offer.total_price, offer.quantity), offer.total_price)
+    total_price = offer_prices.get(product.id, {}).get(offer.id, offer.total_price) if offer_prices else offer.total_price
+    return _item_payload(product, offer.id, offer.quantity, _unit_price(total_price, offer.quantity), total_price)
 
 
 def calculate_pack_items(pack_id: str, items: Iterable[OrderItemIn]) -> list[dict]:
