@@ -8,8 +8,10 @@ from app.db.models import AnalyticsEvent, TrackingEvent
 from app.db.session import SessionLocal, get_db
 from app.schemas.tracking import TrackingEventCreate, TrackingEventResponse
 from app.services.ip_quality import client_ip_from_request, validate_ip
-from app.services.phone import PhoneValidationError, normalize_ksa_phone
+from app.services.markets import valid_market_codes
+from app.services.phone import PhoneValidationError, normalize_gulf_phone
 from app.services.tracking import META_EVENTS, event_time_seconds, send_all_platform_events
+from urllib.parse import urlparse
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
 
@@ -55,7 +57,7 @@ def create_tracking_event(
     phone_digits = None
     if payload.phone:
         try:
-            phone_e164, phone_digits = normalize_ksa_phone(payload.phone)
+            phone_e164, phone_digits = normalize_gulf_phone(payload.phone, _market_code_from_url(source_url))
         except PhoneValidationError:
             phone_e164 = None
             phone_digits = None
@@ -89,6 +91,12 @@ def create_tracking_event(
     if payload.event_name in META_EVENTS:
         background_tasks.add_task(send_and_log_tracking_event, tracking_event)
     return TrackingEventResponse(ok=True, counted=analytics_event.ip_is_valid_ksa)
+
+
+def _market_code_from_url(source_url: str | None) -> str:
+    path = urlparse(source_url or "").path
+    segment = path.strip("/").split("/", 1)[0].lower()
+    return segment if segment in valid_market_codes() else "ksa"
 
 
 def send_and_log_tracking_event(event: dict) -> None:

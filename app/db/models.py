@@ -24,6 +24,7 @@ class Order(Base):
     discount: Mapped[int] = mapped_column(Integer, default=0)
     total: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="SAR")
+    market_code: Mapped[str] = mapped_column(String(10), default="ksa", index=True)
     payment_method: Mapped[str] = mapped_column(String(20), default="COD")
 
     source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -95,6 +96,7 @@ class AnalyticsEvent(Base):
     event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     product_id: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
+    market_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, index=True)
     path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     referrer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -121,4 +123,29 @@ class CatalogVisibility(Base):
     item_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     item_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class MarketStore(Base):
+    __tablename__ = "market_stores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    market_code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
+    country_code: Mapped[str] = mapped_column(String(2), nullable=False)
+    country_name_ar: Mapped[str] = mapped_column(String(80), nullable=False)
+    country_name_en: Mapped[str] = mapped_column(String(80), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SAR")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CatalogMarketVisibility(Base):
+    __tablename__ = "catalog_market_visibility"
+    __table_args__ = (UniqueConstraint("item_type", "item_id", "market_code", name="uq_catalog_market_visibility_item"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    item_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

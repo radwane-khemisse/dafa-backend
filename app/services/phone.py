@@ -1,5 +1,7 @@
 import re
 
+from app.services.markets import GULF_MARKETS, normalize_market_code
+
 
 class PhoneValidationError(ValueError):
     pass
@@ -26,3 +28,29 @@ def normalize_ksa_phone(raw_phone: str) -> tuple[str, str]:
 
     return f"+{digits}", digits
 
+
+def normalize_gulf_phone(raw_phone: str, market_code: str | None = None) -> tuple[str, str]:
+    code = normalize_market_code(market_code)
+    if code == "ksa":
+        return normalize_ksa_phone(raw_phone)
+
+    market = GULF_MARKETS[code]
+    digits = re.sub(r"\D+", "", raw_phone or "")
+    country_prefix = market.phone_country_code
+
+    if digits.startswith(f"00{country_prefix}"):
+        digits = digits[2:]
+    if digits.startswith(f"{country_prefix}0"):
+        digits = country_prefix + digits[len(country_prefix) + 1 :]
+    elif digits.startswith("0") and len(digits) == market.local_phone_digits + 1:
+        digits = country_prefix + digits[1:]
+    elif len(digits) == market.local_phone_digits:
+        digits = country_prefix + digits
+
+    local = digits[len(country_prefix) :]
+    if not digits.startswith(country_prefix) or len(local) != market.local_phone_digits:
+        raise PhoneValidationError(f"Phone must be a valid {market.country_name_en} mobile number.")
+    if len(set(local)) <= 2:
+        raise PhoneValidationError("Phone number appears invalid.")
+
+    return f"+{digits}", digits

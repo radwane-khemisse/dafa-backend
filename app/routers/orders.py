@@ -12,7 +12,8 @@ from app.services.capi_snap import send_snap_purchase
 from app.services.capi_tiktok import send_tiktok_purchase
 from app.services.catalog import calculate_items
 from app.services.catalog_visibility import assert_order_items_visible
-from app.services.phone import PhoneValidationError, normalize_ksa_phone
+from app.services.markets import get_market_settings
+from app.services.phone import PhoneValidationError, normalize_gulf_phone
 from app.services.ip_quality import client_ip_from_request, validate_ip
 from app.services.sheets import send_order_to_sheet
 from app.services.tracking import purchase_event_id
@@ -28,8 +29,11 @@ def create_order(
     db: Session = Depends(get_db),
 ) -> OrderCreateResponse:
     try:
-        phone_e164, phone_digits = normalize_ksa_phone(payload.phone)
-        assert_order_items_visible(db, payload.items)
+        market = get_market_settings(db, payload.market_code)
+        if not market["active"]:
+            raise ValueError(f"Store is not active for market: {payload.market_code}")
+        phone_e164, phone_digits = normalize_gulf_phone(payload.phone, market["code"])
+        assert_order_items_visible(db, payload.items, market["code"])
         calculated_items = calculate_items(payload.items)
     except (PhoneValidationError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -52,7 +56,8 @@ def create_order(
         delivery_fee=delivery_fee,
         discount=discount,
         total=total,
-        currency="SAR",
+        currency=market["currency"],
+        market_code=market["code"],
         payment_method="COD",
         source_url=payload.client.landing_page,
         referrer=payload.client.referrer,
@@ -88,15 +93,16 @@ def create_order(
     db.commit()
     db.refresh(order)
 
-    integration_payload = _serialize_order(order, calculated_items, payload.client.model_dump())
+    integration_payload = _serialize_order(order, calculated_items, payload.client.model_dump(), market)
     background_tasks.add_task(run_integrations, order.id, integration_payload)
 
     return OrderCreateResponse(ok=True, order_id=order.public_order_id, purchase_event_id=order.event_id, status=order.status)
 
 
-def _serialize_order(order: Order, items: list[dict], client: dict | None = None) -> dict:
+def _serialize_order(order: Order, items: list[dict], client: dict | None = None, market: dict | None = None) -> dict:
     created_at = order.created_at or datetime.now(UTC)
     client = client or {}
+    market = market or {"code": order.market_code, "country_code": order.ip_country_code or "SA", "currency": order.currency}
     return {
         "id": order.id,
         "public_order_id": order.public_order_id,
@@ -112,6 +118,7 @@ def _serialize_order(order: Order, items: list[dict], client: dict | None = None
         "delivery_fee": order.delivery_fee,
         "total": order.total,
         "currency": order.currency,
+        "market_code": order.market_code,
         "payment_method": order.payment_method,
         "upsell_accepted": order.upsell_accepted,
         "source_url": order.source_url,
@@ -135,14 +142,14 @@ def _serialize_order(order: Order, items: list[dict], client: dict | None = None
         "sheet_order": {
             "date": created_at.strftime("%d/%m/%Y"),
             "orderId": order.public_order_id,
-            "country": "KSA",
+            "country": market.get("code", order.market_code).upper(),
             "name": order.customer_name,
             "phone": order.phone_digits,
             "product": "/".join(item["title_ar"] for item in items),
             "sku": "/".join(item["sku"] for item in items),
             "quantity": "/".join(str(item["quantity"]) for item in items),
             "totalprice": order.total,
-            "currency": "SAR",
+            "currency": order.currency,
             "status": "",
         },
     }

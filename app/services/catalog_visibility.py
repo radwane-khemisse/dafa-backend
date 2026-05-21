@@ -1,19 +1,29 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CatalogVisibility
+from app.db.models import CatalogMarketVisibility, CatalogVisibility
 from app.schemas.orders import OrderItemIn
 from app.services.catalog import PACKS, PRODUCTS
+from app.services.markets import normalize_market_code, valid_market_codes
 
 
 VALID_ITEM_TYPES = {"product", "pack"}
 
 
-def hidden_catalog_ids(db: Session) -> dict[str, set[str]]:
+def hidden_catalog_ids(db: Session, market_code: str | None = None) -> dict[str, set[str]]:
+    code = normalize_market_code(market_code)
     rows = db.scalars(select(CatalogVisibility).where(CatalogVisibility.hidden.is_(True))).all()
+    market_rows = db.scalars(
+        select(CatalogMarketVisibility).where(
+            CatalogMarketVisibility.market_code == code,
+            CatalogMarketVisibility.visible.is_(False),
+        )
+    ).all()
     return {
-        "product": {row.item_id for row in rows if row.item_type == "product"},
-        "pack": {row.item_id for row in rows if row.item_type == "pack"},
+        "product": {row.item_id for row in rows if row.item_type == "product"}
+        | {row.item_id for row in market_rows if row.item_type == "product"},
+        "pack": {row.item_id for row in rows if row.item_type == "pack"}
+        | {row.item_id for row in market_rows if row.item_type == "pack"},
     }
 
 
@@ -40,8 +50,45 @@ def set_catalog_hidden(db: Session, item_type: str, item_id: str, hidden: bool) 
     return row
 
 
-def assert_order_items_visible(db: Session, items: list[OrderItemIn]) -> None:
-    hidden = hidden_catalog_ids(db)
+def item_market_codes(db: Session, item_type: str, item_id: str) -> list[str]:
+    _validate_catalog_item(item_type, item_id)
+    codes = sorted(valid_market_codes())
+    rows = db.scalars(
+        select(CatalogMarketVisibility).where(
+            CatalogMarketVisibility.item_type == item_type,
+            CatalogMarketVisibility.item_id == item_id,
+        )
+    ).all()
+    if not rows:
+        return codes
+    visible_by_market = {row.market_code: row.visible for row in rows}
+    return [code for code in codes if visible_by_market.get(code, True)]
+
+
+def set_catalog_market_codes(db: Session, item_type: str, item_id: str, market_codes: list[str]) -> list[CatalogMarketVisibility]:
+    _validate_catalog_item(item_type, item_id)
+    selected = {normalize_market_code(code) for code in market_codes}
+    rows: list[CatalogMarketVisibility] = []
+    for code in sorted(valid_market_codes()):
+        row = db.scalar(
+            select(CatalogMarketVisibility).where(
+                CatalogMarketVisibility.item_type == item_type,
+                CatalogMarketVisibility.item_id == item_id,
+                CatalogMarketVisibility.market_code == code,
+            )
+        )
+        if row is None:
+            row = CatalogMarketVisibility(item_type=item_type, item_id=item_id, market_code=code, visible=code in selected)
+            db.add(row)
+        else:
+            row.visible = code in selected
+        rows.append(row)
+    db.commit()
+    return rows
+
+
+def assert_order_items_visible(db: Session, items: list[OrderItemIn], market_code: str | None = None) -> None:
+    hidden = hidden_catalog_ids(db, market_code)
     hidden_products = hidden["product"]
     hidden_packs = hidden["pack"]
 

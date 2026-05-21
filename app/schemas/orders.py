@@ -45,6 +45,7 @@ class ClientIn(BaseModel):
 
 
 class OrderCreate(BaseModel):
+    market_code: str = "ksa"
     event_id: str = Field(min_length=8)
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=8, max_length=32)

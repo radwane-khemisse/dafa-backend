@@ -11,7 +11,13 @@ from app.core.config import get_settings
 from app.db.models import AnalyticsEvent, Order, OrderItem
 from app.db.session import get_db
 from app.services.catalog import PACKS, PRODUCTS
-from app.services.catalog_visibility import get_catalog_visibility, set_catalog_hidden
+from app.services.catalog_visibility import (
+    get_catalog_visibility,
+    item_market_codes,
+    set_catalog_hidden,
+    set_catalog_market_codes,
+)
+from app.services.markets import list_market_settings, set_market_settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBasic()
@@ -19,6 +25,15 @@ security = HTTPBasic()
 
 class CatalogVisibilityUpdate(BaseModel):
     hidden: bool
+
+
+class MarketStoreUpdate(BaseModel):
+    active: bool
+    currency: str
+
+
+class CatalogMarketsUpdate(BaseModel):
+    market_codes: list[str]
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
@@ -58,12 +73,10 @@ def dashboard(
     event_filter = (
         AnalyticsEvent.created_at >= range_start,
         AnalyticsEvent.created_at <= range_end,
-        AnalyticsEvent.ip_is_valid_ksa.is_(True),
     )
     order_filter = (
         Order.created_at >= range_start,
         Order.created_at <= range_end,
-        Order.ip_is_valid_ksa.is_(True),
     )
 
     clicks = db.scalar(select(func.count()).select_from(AnalyticsEvent).where(*event_filter, AnalyticsEvent.event_name == "Click")) or 0
@@ -181,7 +194,7 @@ def orders(
     _: None = Depends(require_admin),
 ) -> dict:
     range_start, range_end = _date_range(start, end)
-    filters = [Order.created_at >= range_start, Order.created_at <= range_end, Order.ip_is_valid_ksa.is_(True)]
+    filters = [Order.created_at >= range_start, Order.created_at <= range_end]
     if status_filter:
         filters.append(Order.status == status_filter)
     rows = db.scalars(
@@ -200,6 +213,7 @@ def catalog(
     _: None = Depends(require_admin),
 ) -> dict:
     visibility = get_catalog_visibility(db)
+    markets = list_market_settings(db)
     products = [
         {
             "type": "product",
@@ -208,6 +222,7 @@ def catalog(
             "name_ar": product.name_ar,
             "name_en": product.name_en,
             "hidden": visibility.get(("product", product.id), False),
+            "market_codes": item_market_codes(db, "product", product.id),
         }
         for product in PRODUCTS.values()
     ]
@@ -219,11 +234,26 @@ def catalog(
             "name_ar": pack.id.replace("-", " "),
             "name_en": pack.id.replace("-", " ").title(),
             "hidden": visibility.get(("pack", pack.id), False),
+            "market_codes": item_market_codes(db, "pack", pack.id),
             "product_ids": list(pack.product_ids),
         }
         for pack in PACKS.values()
     ]
-    return {"products": products, "packs": packs}
+    return {"markets": markets, "products": products, "packs": packs}
+
+
+@router.post("/markets/{market_code}")
+def update_market_store(
+    market_code: str,
+    payload: MarketStoreUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        row = set_market_settings(db, market_code, payload.active, payload.currency)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"code": row.market_code, "active": row.active, "currency": row.currency}
 
 
 @router.post("/catalog/{item_type}/{item_id}/visibility")
@@ -241,6 +271,21 @@ def update_catalog_visibility(
     return {"type": row.item_type, "id": row.item_id, "hidden": row.hidden}
 
 
+@router.post("/catalog/{item_type}/{item_id}/markets")
+def update_catalog_markets(
+    item_type: str,
+    item_id: str,
+    payload: CatalogMarketsUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        set_catalog_market_codes(db, item_type, item_id, payload.market_codes)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"type": item_type, "id": item_id, "market_codes": item_market_codes(db, item_type, item_id)}
+
+
 def _serialize_orders(orders: list[Order]) -> list[dict]:
     return [
         {
@@ -255,6 +300,7 @@ def _serialize_orders(orders: list[Order]) -> list[dict]:
             "discount": order.discount,
             "total": order.total,
             "currency": order.currency,
+            "market_code": order.market_code,
             "payment_method": order.payment_method,
             "upsell_accepted": order.upsell_accepted,
             "source_url": order.source_url,
