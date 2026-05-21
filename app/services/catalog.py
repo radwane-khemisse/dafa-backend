@@ -78,9 +78,14 @@ PACKS: dict[str, Pack] = {
 
 
 OfferPriceMap = dict[str, dict[str, int]]
+PackPriceMap = dict[str, int]
 
 
-def calculate_items(items: list[OrderItemIn], offer_prices: OfferPriceMap | None = None) -> list[dict]:
+def calculate_items(
+    items: list[OrderItemIn],
+    offer_prices: OfferPriceMap | None = None,
+    pack_prices: PackPriceMap | None = None,
+) -> list[dict]:
     calculated: list[dict] = []
     pack_groups: dict[str, list[OrderItemIn]] = {}
 
@@ -91,7 +96,7 @@ def calculate_items(items: list[OrderItemIn], offer_prices: OfferPriceMap | None
             calculated.append(calculate_item(item.product_id, item.offer_id, offer_prices))
 
     for pack_id, pack_items in pack_groups.items():
-        calculated.extend(calculate_pack_items(pack_id, pack_items))
+        calculated.extend(calculate_pack_items(pack_id, pack_items, pack_prices))
 
     return calculated
 
@@ -109,7 +114,7 @@ def calculate_item(product_id: str, offer_id: str, offer_prices: OfferPriceMap |
     return _item_payload(product, offer.id, offer.quantity, _unit_price(total_price, offer.quantity), total_price)
 
 
-def calculate_pack_items(pack_id: str, items: Iterable[OrderItemIn]) -> list[dict]:
+def calculate_pack_items(pack_id: str, items: Iterable[OrderItemIn], pack_prices: PackPriceMap | None = None) -> list[dict]:
     pack = PACKS.get(pack_id)
     if pack is None:
         raise ValueError(f"Unknown pack_id: {pack_id}")
@@ -122,7 +127,8 @@ def calculate_pack_items(pack_id: str, items: Iterable[OrderItemIn]) -> list[dic
     if any(item.offer_id != pack.offer_id for item in pack_items):
         raise ValueError(f"Invalid offer for pack_id: {pack_id}")
 
-    line_totals = _split_total(pack.total_price, len(pack_items))
+    total_price = pack_prices.get(pack.id, pack.total_price) if pack_prices else pack.total_price
+    line_totals = _split_total(total_price, len(pack_items))
     return [
         _item_payload(
             product=_require_product(item.product_id),

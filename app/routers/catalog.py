@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.catalog_visibility import hidden_catalog_ids
 from app.services.markets import get_market_settings, list_market_settings
-from app.services.offer_pricing import get_offer_prices
+from app.services.offer_pricing import get_offer_prices, get_pack_prices
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -30,4 +30,5 @@ def visibility(market: str = Query(default="ksa"), db: Session = Depends(get_db)
         "hidden_products": sorted(hidden["product"]),
         "hidden_packs": sorted(hidden["pack"]),
         "offer_prices": get_offer_prices(db, market_settings["code"]),
+        "pack_prices": get_pack_prices(db, market_settings["code"]),
     }

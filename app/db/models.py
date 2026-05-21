@@ -161,3 +161,14 @@ class OfferMarketPrice(Base):
     market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PackMarketPrice(Base):
+    __tablename__ = "pack_market_prices"
+    __table_args__ = (UniqueConstraint("pack_id", "market_code", name="uq_pack_market_price"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pack_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    price: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

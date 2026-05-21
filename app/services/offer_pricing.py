@@ -1,8 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import OfferMarketPrice
-from app.services.catalog import OFFERS, PRODUCTS
+from app.db.models import OfferMarketPrice, PackMarketPrice
+from app.services.catalog import OFFERS, PACKS, PRODUCTS
 from app.services.markets import normalize_market_code, valid_market_codes
 
 
@@ -26,6 +26,20 @@ def get_offer_prices(db: Session, market_code: str | None) -> dict[str, dict[str
     return prices
 
 
+def default_pack_prices() -> dict[str, int]:
+    return {pack_id: pack.total_price for pack_id, pack in PACKS.items()}
+
+
+def get_pack_prices(db: Session, market_code: str | None) -> dict[str, int]:
+    code = normalize_market_code(market_code)
+    prices = default_pack_prices()
+    rows = db.scalars(select(PackMarketPrice).where(PackMarketPrice.market_code == code)).all()
+    for row in rows:
+        if row.pack_id in prices:
+            prices[row.pack_id] = row.price
+    return prices
+
+
 def admin_product_offers(db: Session, product_id: str) -> list[dict]:
     if product_id not in PRODUCTS:
         raise ValueError(f"Unknown product_id: {product_id}")
@@ -46,6 +60,17 @@ def admin_product_offers(db: Session, product_id: str) -> list[dict]:
     ]
 
 
+def admin_pack_prices(db: Session, pack_id: str) -> dict[str, int]:
+    if pack_id not in PACKS:
+        raise ValueError(f"Unknown pack_id: {pack_id}")
+    rows = db.scalars(select(PackMarketPrice).where(PackMarketPrice.pack_id == pack_id)).all()
+    overrides = {row.market_code: row.price for row in rows}
+    return {
+        code: overrides.get(code, PACKS[pack_id].total_price)
+        for code in sorted(valid_market_codes())
+    }
+
+
 def set_offer_market_price(db: Session, product_id: str, offer_id: str, market_code: str, price: int) -> OfferMarketPrice:
     if product_id not in PRODUCTS:
         raise ValueError(f"Unknown product_id: {product_id}")
@@ -64,6 +89,29 @@ def set_offer_market_price(db: Session, product_id: str, offer_id: str, market_c
     )
     if row is None:
         row = OfferMarketPrice(product_id=product_id, offer_id=offer_id, market_code=code, price=price)
+        db.add(row)
+    else:
+        row.price = price
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def set_pack_market_price(db: Session, pack_id: str, market_code: str, price: int) -> PackMarketPrice:
+    if pack_id not in PACKS:
+        raise ValueError(f"Unknown pack_id: {pack_id}")
+    if price < 0:
+        raise ValueError("price must be zero or greater")
+
+    code = normalize_market_code(market_code)
+    row = db.scalar(
+        select(PackMarketPrice).where(
+            PackMarketPrice.pack_id == pack_id,
+            PackMarketPrice.market_code == code,
+        )
+    )
+    if row is None:
+        row = PackMarketPrice(pack_id=pack_id, market_code=code, price=price)
         db.add(row)
     else:
         row.price = price
