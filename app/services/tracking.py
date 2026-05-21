@@ -151,7 +151,7 @@ def build_tracking_event_from_order(payload: dict[str, Any]) -> dict[str, Any]:
         "phone_e164": payload.get("phone_e164"),
         "phone_digits": payload.get("phone_digits"),
         "value": payload.get("total"),
-        "currency": payload.get("currency") or "SAR",
+        "currency": payload.get("currency") or "ريال",
         "items": payload.get("items") or [],
         "order_id": payload.get("public_order_id"),
         "fbp": payload.get("fbp"),
@@ -180,7 +180,7 @@ def build_meta_payload(event: dict[str, Any], settings: Settings) -> dict[str, A
     items = event.get("items") or []
     content_ids = event.get("content_ids") or ([event["product_id"]] if event.get("product_id") else [])
     custom_data: dict[str, Any] = {
-        "currency": event.get("currency") or "SAR",
+        "currency": event.get("currency") or "ريال",
         "value": event.get("value"),
         "content_ids": [item.get("product_id") for item in items if item.get("product_id")] or content_ids,
         "content_name": event.get("content_name"),
@@ -232,7 +232,7 @@ def build_tiktok_payload(event: dict[str, Any], settings: Settings) -> dict[str,
     items = event.get("items") or []
     content_ids = event.get("content_ids") or ([event["product_id"]] if event.get("product_id") else [])
     properties: dict[str, Any] = {
-        "currency": event.get("currency") or "SAR",
+        "currency": event.get("currency") or "ريال",
         "value": event.get("value"),
         "content_type": "product",
         "contents": build_tiktok_contents(items, content_ids),
@@ -268,7 +268,7 @@ def build_snap_payload(event: dict[str, Any], settings: Settings) -> dict[str, A
     items = event.get("items") or []
     content_ids = event.get("content_ids") or ([event["product_id"]] if event.get("product_id") else [])
     custom_data: dict[str, Any] = {
-        "currency": event.get("currency") or "SAR",
+        "currency": event.get("currency") or "ريال",
         "value": event.get("value"),
         "content_ids": [item.get("product_id") for item in items if item.get("product_id")] or content_ids,
         "contents": build_contents(items, content_ids),

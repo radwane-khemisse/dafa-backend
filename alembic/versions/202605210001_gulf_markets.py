@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.Column("country_name_ar", sa.String(length=80), nullable=False),
         sa.Column("country_name_en", sa.String(length=80), nullable=False),
         sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("currency", sa.String(length=3), nullable=False),
+        sa.Column("currency", sa.String(length=20), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.UniqueConstraint("market_code", name="uq_market_stores_market_code"),
     )
@@ -65,12 +65,12 @@ def upgrade() -> None:
     op.bulk_insert(
         market_stores,
         [
-            {"market_code": "ksa", "country_code": "SA", "country_name_ar": "السعودية", "country_name_en": "Saudi Arabia", "active": True, "currency": "SAR"},
-            {"market_code": "kwt", "country_code": "KW", "country_name_ar": "الكويت", "country_name_en": "Kuwait", "active": True, "currency": "KWD"},
-            {"market_code": "uae", "country_code": "AE", "country_name_ar": "الإمارات", "country_name_en": "United Arab Emirates", "active": True, "currency": "AED"},
-            {"market_code": "qat", "country_code": "QA", "country_name_ar": "قطر", "country_name_en": "Qatar", "active": True, "currency": "QAR"},
-            {"market_code": "bhr", "country_code": "BH", "country_name_ar": "البحرين", "country_name_en": "Bahrain", "active": True, "currency": "BHD"},
-            {"market_code": "omn", "country_code": "OM", "country_name_ar": "عمان", "country_name_en": "Oman", "active": True, "currency": "OMR"},
+            {"market_code": "ksa", "country_code": "SA", "country_name_ar": "السعودية", "country_name_en": "Saudi Arabia", "active": True, "currency": "ريال"},
+            {"market_code": "kwt", "country_code": "KW", "country_name_ar": "الكويت", "country_name_en": "Kuwait", "active": True, "currency": "دينار"},
+            {"market_code": "uae", "country_code": "AE", "country_name_ar": "الإمارات", "country_name_en": "United Arab Emirates", "active": True, "currency": "درهم"},
+            {"market_code": "qat", "country_code": "QA", "country_name_ar": "قطر", "country_name_en": "Qatar", "active": True, "currency": "ريال"},
+            {"market_code": "bhr", "country_code": "BH", "country_name_ar": "البحرين", "country_name_en": "Bahrain", "active": True, "currency": "دينار"},
+            {"market_code": "omn", "country_code": "OM", "country_name_ar": "عمان", "country_name_en": "Oman", "active": True, "currency": "ريال"},
         ],
     )
 

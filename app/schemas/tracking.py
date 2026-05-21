@@ -40,7 +40,7 @@ class TrackingEventCreate(BaseModel):
     content_ids: list[str] = Field(default_factory=list)
     items: list[TrackingItemIn] = Field(default_factory=list)
     value: int | float | None = None
-    currency: str = "SAR"
+    currency: str = "ريال"
     name: str | None = Field(default=None, max_length=120)
     phone: str | None = Field(default=None, max_length=32)
     metadata: dict[str, Any] | None = None

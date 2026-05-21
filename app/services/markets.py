@@ -18,12 +18,12 @@ class MarketDefinition:
 
 
 GULF_MARKETS: dict[str, MarketDefinition] = {
-    "ksa": MarketDefinition("ksa", "SA", "السعودية", "Saudi Arabia", "SAR", "966", 9),
-    "kwt": MarketDefinition("kwt", "KW", "الكويت", "Kuwait", "KWD", "965", 8),
-    "uae": MarketDefinition("uae", "AE", "الإمارات", "United Arab Emirates", "AED", "971", 9),
-    "qat": MarketDefinition("qat", "QA", "قطر", "Qatar", "QAR", "974", 8),
-    "bhr": MarketDefinition("bhr", "BH", "البحرين", "Bahrain", "BHD", "973", 8),
-    "omn": MarketDefinition("omn", "OM", "عمان", "Oman", "OMR", "968", 8),
+    "ksa": MarketDefinition("ksa", "SA", "السعودية", "Saudi Arabia", "ريال", "966", 9),
+    "kwt": MarketDefinition("kwt", "KW", "الكويت", "Kuwait", "دينار", "965", 8),
+    "uae": MarketDefinition("uae", "AE", "الإمارات", "United Arab Emirates", "درهم", "971", 9),
+    "qat": MarketDefinition("qat", "QA", "قطر", "Qatar", "ريال", "974", 8),
+    "bhr": MarketDefinition("bhr", "BH", "البحرين", "Bahrain", "دينار", "973", 8),
+    "omn": MarketDefinition("omn", "OM", "عمان", "Oman", "ريال", "968", 8),
 }
 
 
@@ -52,7 +52,7 @@ def get_market_settings(db: Session, market_code: str | None) -> dict:
 def set_market_settings(db: Session, market_code: str, active: bool, currency: str) -> MarketStore:
     code = normalize_market_code(market_code)
     definition = GULF_MARKETS[code]
-    normalized_currency = (currency or definition.currency).strip().upper()[:3]
+    normalized_currency = (currency or definition.currency).strip()
     row = db.scalar(select(MarketStore).where(MarketStore.market_code == code))
     if row is None:
         row = MarketStore(

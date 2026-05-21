@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS market_stores (
   country_name_ar VARCHAR(80) NOT NULL,
   country_name_en VARCHAR(80) NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
-  currency VARCHAR(3) NOT NULL,
+  currency VARCHAR(20) NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -35,10 +35,10 @@ CREATE INDEX IF NOT EXISTS ix_catalog_market_visibility_visible ON catalog_marke
 
 INSERT INTO market_stores (market_code, country_code, country_name_ar, country_name_en, active, currency)
 VALUES
-  ('ksa', 'SA', 'السعودية', 'Saudi Arabia', TRUE, 'SAR'),
-  ('kwt', 'KW', 'الكويت', 'Kuwait', TRUE, 'KWD'),
-  ('uae', 'AE', 'الإمارات', 'United Arab Emirates', TRUE, 'AED'),
-  ('qat', 'QA', 'قطر', 'Qatar', TRUE, 'QAR'),
-  ('bhr', 'BH', 'البحرين', 'Bahrain', TRUE, 'BHD'),
-  ('omn', 'OM', 'عمان', 'Oman', TRUE, 'OMR')
+  ('ksa', 'SA', 'السعودية', 'Saudi Arabia', TRUE, 'ريال'),
+  ('kwt', 'KW', 'الكويت', 'Kuwait', TRUE, 'دينار'),
+  ('uae', 'AE', 'الإمارات', 'United Arab Emirates', TRUE, 'درهم'),
+  ('qat', 'QA', 'قطر', 'Qatar', TRUE, 'ريال'),
+  ('bhr', 'BH', 'البحرين', 'Bahrain', TRUE, 'دينار'),
+  ('omn', 'OM', 'عمان', 'Oman', TRUE, 'ريال')
 ON CONFLICT (market_code) DO NOTHING;

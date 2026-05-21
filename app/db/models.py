@@ -23,7 +23,7 @@ class Order(Base):
     delivery_fee: Mapped[int] = mapped_column(Integer, default=0)
     discount: Mapped[int] = mapped_column(Integer, default=0)
     total: Mapped[int] = mapped_column(Integer)
-    currency: Mapped[str] = mapped_column(String(3), default="SAR")
+    currency: Mapped[str] = mapped_column(String(20), default="ريال")
     market_code: Mapped[str] = mapped_column(String(10), default="ksa", index=True)
     payment_method: Mapped[str] = mapped_column(String(20), default="COD")
 
@@ -135,7 +135,7 @@ class MarketStore(Base):
     country_name_ar: Mapped[str] = mapped_column(String(80), nullable=False)
     country_name_en: Mapped[str] = mapped_column(String(80), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SAR")
+    currency: Mapped[str] = mapped_column(String(20), nullable=False, default="ريال")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 

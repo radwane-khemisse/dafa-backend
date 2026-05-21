@@ -143,6 +143,7 @@ def _serialize_order(order: Order, items: list[dict], client: dict | None = None
             "date": created_at.strftime("%d/%m/%Y"),
             "orderId": order.public_order_id,
             "country": market.get("code", order.market_code).upper(),
+            "market_code": market.get("code", order.market_code),
             "name": order.customer_name,
             "phone": order.phone_digits,
             "product": "/".join(item["title_ar"] for item in items),
