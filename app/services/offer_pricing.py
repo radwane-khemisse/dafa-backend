@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import OfferMarketPrice, PackMarketPrice
+from app.db.models import OfferMarketPrice, PackMarketDetail, PackMarketPrice, ProductMarketDetail
 from app.services.catalog import OFFERS, PACKS, PRODUCTS
 from app.services.markets import normalize_market_code, valid_market_codes
 
@@ -60,6 +60,37 @@ def admin_product_offers(db: Session, product_id: str) -> list[dict]:
     ]
 
 
+def default_product_market_details() -> dict[str, dict[str, dict[str, str | float]]]:
+    return {
+        product_id: {
+            code: {"sku": product.sku, "cost": 0.0}
+            for code in sorted(valid_market_codes())
+        }
+        for product_id, product in PRODUCTS.items()
+    }
+
+
+def get_product_market_details(db: Session, market_code: str | None) -> dict[str, dict[str, str | float]]:
+    code = normalize_market_code(market_code)
+    details = {product_id: {"sku": product.sku, "cost": 0.0} for product_id, product in PRODUCTS.items()}
+    rows = db.scalars(select(ProductMarketDetail).where(ProductMarketDetail.market_code == code)).all()
+    for row in rows:
+        if row.product_id in details:
+            details[row.product_id] = {"sku": row.sku, "cost": row.cost}
+    return details
+
+
+def admin_product_market_details(db: Session, product_id: str) -> dict[str, dict[str, str | float]]:
+    if product_id not in PRODUCTS:
+        raise ValueError(f"Unknown product_id: {product_id}")
+    rows = db.scalars(select(ProductMarketDetail).where(ProductMarketDetail.product_id == product_id)).all()
+    overrides = {row.market_code: {"sku": row.sku, "cost": row.cost} for row in rows}
+    return {
+        code: overrides.get(code, {"sku": PRODUCTS[product_id].sku, "cost": 0.0})
+        for code in sorted(valid_market_codes())
+    }
+
+
 def admin_pack_prices(db: Session, pack_id: str) -> dict[str, int]:
     if pack_id not in PACKS:
         raise ValueError(f"Unknown pack_id: {pack_id}")
@@ -67,6 +98,31 @@ def admin_pack_prices(db: Session, pack_id: str) -> dict[str, int]:
     overrides = {row.market_code: row.price for row in rows}
     return {
         code: overrides.get(code, PACKS[pack_id].total_price)
+        for code in sorted(valid_market_codes())
+    }
+
+
+def _default_pack_sku(pack_id: str) -> str:
+    return f"DAFA-{pack_id.upper().replace('-', '-')}"
+
+
+def get_pack_market_details(db: Session, market_code: str | None) -> dict[str, dict[str, str | float]]:
+    code = normalize_market_code(market_code)
+    details = {pack_id: {"sku": _default_pack_sku(pack_id), "cost": 0.0} for pack_id in PACKS}
+    rows = db.scalars(select(PackMarketDetail).where(PackMarketDetail.market_code == code)).all()
+    for row in rows:
+        if row.pack_id in details:
+            details[row.pack_id] = {"sku": row.sku, "cost": row.cost}
+    return details
+
+
+def admin_pack_market_details(db: Session, pack_id: str) -> dict[str, dict[str, str | float]]:
+    if pack_id not in PACKS:
+        raise ValueError(f"Unknown pack_id: {pack_id}")
+    rows = db.scalars(select(PackMarketDetail).where(PackMarketDetail.pack_id == pack_id)).all()
+    overrides = {row.market_code: {"sku": row.sku, "cost": row.cost} for row in rows}
+    return {
+        code: overrides.get(code, {"sku": _default_pack_sku(pack_id), "cost": 0.0})
         for code in sorted(valid_market_codes())
     }
 
@@ -115,6 +171,60 @@ def set_pack_market_price(db: Session, pack_id: str, market_code: str, price: in
         db.add(row)
     else:
         row.price = price
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def set_product_market_detail(db: Session, product_id: str, market_code: str, sku: str, cost: float) -> ProductMarketDetail:
+    if product_id not in PRODUCTS:
+        raise ValueError(f"Unknown product_id: {product_id}")
+    normalized_sku = sku.strip()
+    if not normalized_sku:
+        raise ValueError("sku is required")
+    if cost < 0:
+        raise ValueError("cost must be zero or greater")
+
+    code = normalize_market_code(market_code)
+    row = db.scalar(
+        select(ProductMarketDetail).where(
+            ProductMarketDetail.product_id == product_id,
+            ProductMarketDetail.market_code == code,
+        )
+    )
+    if row is None:
+        row = ProductMarketDetail(product_id=product_id, market_code=code, sku=normalized_sku, cost=cost)
+        db.add(row)
+    else:
+        row.sku = normalized_sku
+        row.cost = cost
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def set_pack_market_detail(db: Session, pack_id: str, market_code: str, sku: str, cost: float) -> PackMarketDetail:
+    if pack_id not in PACKS:
+        raise ValueError(f"Unknown pack_id: {pack_id}")
+    normalized_sku = sku.strip()
+    if not normalized_sku:
+        raise ValueError("sku is required")
+    if cost < 0:
+        raise ValueError("cost must be zero or greater")
+
+    code = normalize_market_code(market_code)
+    row = db.scalar(
+        select(PackMarketDetail).where(
+            PackMarketDetail.pack_id == pack_id,
+            PackMarketDetail.market_code == code,
+        )
+    )
+    if row is None:
+        row = PackMarketDetail(pack_id=pack_id, market_code=code, sku=normalized_sku, cost=cost)
+        db.add(row)
+    else:
+        row.sku = normalized_sku
+        row.cost = cost
     db.commit()
     db.refresh(row)
     return row

@@ -18,7 +18,16 @@ from app.services.catalog_visibility import (
     set_catalog_market_codes,
 )
 from app.services.markets import list_market_settings, normalize_market_code, set_market_settings
-from app.services.offer_pricing import admin_pack_prices, admin_product_offers, set_offer_market_price, set_pack_market_price
+from app.services.offer_pricing import (
+    admin_pack_market_details,
+    admin_pack_prices,
+    admin_product_market_details,
+    admin_product_offers,
+    set_offer_market_price,
+    set_pack_market_detail,
+    set_pack_market_price,
+    set_product_market_detail,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBasic()
@@ -45,6 +54,12 @@ class OfferMarketPriceUpdate(BaseModel):
 class PackMarketPriceUpdate(BaseModel):
     market_code: str
     price: int
+
+
+class CatalogMarketDetailUpdate(BaseModel):
+    market_code: str
+    sku: str
+    cost: float
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
@@ -254,6 +269,7 @@ def catalog(
             "hidden": visibility.get(("product", product.id), False),
             "market_codes": item_market_codes(db, "product", product.id),
             "offers": admin_product_offers(db, product.id),
+            "details": admin_product_market_details(db, product.id),
         }
         for product in PRODUCTS.values()
     ]
@@ -268,6 +284,7 @@ def catalog(
             "market_codes": item_market_codes(db, "pack", pack.id),
             "product_ids": list(pack.product_ids),
             "prices": admin_pack_prices(db, pack.id),
+            "details": admin_pack_market_details(db, pack.id),
         }
         for pack in PACKS.values()
     ]
@@ -350,6 +367,34 @@ def update_pack_market_price(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"pack_id": row.pack_id, "market_code": row.market_code, "price": row.price}
+
+
+@router.post("/catalog/products/{product_id}/details")
+def update_product_market_detail(
+    product_id: str,
+    payload: CatalogMarketDetailUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        row = set_product_market_detail(db, product_id, payload.market_code, payload.sku, payload.cost)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"product_id": row.product_id, "market_code": row.market_code, "sku": row.sku, "cost": row.cost}
+
+
+@router.post("/catalog/packs/{pack_id}/details")
+def update_pack_market_detail(
+    pack_id: str,
+    payload: CatalogMarketDetailUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        row = set_pack_market_detail(db, pack_id, payload.market_code, payload.sku, payload.cost)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"pack_id": row.pack_id, "market_code": row.market_code, "sku": row.sku, "cost": row.cost}
 
 
 def _serialize_orders(orders: list[Order]) -> list[dict]:

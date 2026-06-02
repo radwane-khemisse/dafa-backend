@@ -172,3 +172,27 @@ class PackMarketPrice(Base):
     market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ProductMarketDetail(Base):
+    __tablename__ = "product_market_details"
+    __table_args__ = (UniqueConstraint("product_id", "market_code", name="uq_product_market_detail"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    sku: Mapped[str] = mapped_column(String(120), nullable=False)
+    cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PackMarketDetail(Base):
+    __tablename__ = "pack_market_details"
+    __table_args__ = (UniqueConstraint("pack_id", "market_code", name="uq_pack_market_detail"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pack_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    sku: Mapped[str] = mapped_column(String(120), nullable=False)
+    cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
