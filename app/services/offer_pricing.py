@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.models import OfferMarketPrice, PackMarketDetail, PackMarketPrice, ProductMarketDetail
 from app.services.catalog import OFFERS, PACKS, PRODUCTS
 from app.services.markets import normalize_market_code, valid_market_codes
+from app.services.warehouses import default_warehouse_for_market, normalize_warehouse
 
 
 PRODUCT_OFFER_IDS = ("one", "two", "three")
@@ -63,7 +64,7 @@ def admin_product_offers(db: Session, product_id: str) -> list[dict]:
 def default_product_market_details() -> dict[str, dict[str, dict[str, str | float]]]:
     return {
         product_id: {
-            code: {"sku": product.sku, "cost": 0.0}
+            code: {"sku": product.sku, "cost": 0.0, "warehouse": default_warehouse_for_market(code)}
             for code in sorted(valid_market_codes())
         }
         for product_id, product in PRODUCTS.items()
@@ -72,11 +73,14 @@ def default_product_market_details() -> dict[str, dict[str, dict[str, str | floa
 
 def get_product_market_details(db: Session, market_code: str | None) -> dict[str, dict[str, str | float]]:
     code = normalize_market_code(market_code)
-    details = {product_id: {"sku": product.sku, "cost": 0.0} for product_id, product in PRODUCTS.items()}
+    details = {
+        product_id: {"sku": product.sku, "cost": 0.0, "warehouse": default_warehouse_for_market(code)}
+        for product_id, product in PRODUCTS.items()
+    }
     rows = db.scalars(select(ProductMarketDetail).where(ProductMarketDetail.market_code == code)).all()
     for row in rows:
         if row.product_id in details:
-            details[row.product_id] = {"sku": row.sku, "cost": row.cost}
+            details[row.product_id] = {"sku": row.sku, "cost": row.cost, "warehouse": row.warehouse or default_warehouse_for_market(code)}
     return details
 
 
@@ -84,9 +88,12 @@ def admin_product_market_details(db: Session, product_id: str) -> dict[str, dict
     if product_id not in PRODUCTS:
         raise ValueError(f"Unknown product_id: {product_id}")
     rows = db.scalars(select(ProductMarketDetail).where(ProductMarketDetail.product_id == product_id)).all()
-    overrides = {row.market_code: {"sku": row.sku, "cost": row.cost} for row in rows}
+    overrides = {
+        row.market_code: {"sku": row.sku, "cost": row.cost, "warehouse": row.warehouse or default_warehouse_for_market(row.market_code)}
+        for row in rows
+    }
     return {
-        code: overrides.get(code, {"sku": PRODUCTS[product_id].sku, "cost": 0.0})
+        code: overrides.get(code, {"sku": PRODUCTS[product_id].sku, "cost": 0.0, "warehouse": default_warehouse_for_market(code)})
         for code in sorted(valid_market_codes())
     }
 
@@ -176,7 +183,7 @@ def set_pack_market_price(db: Session, pack_id: str, market_code: str, price: in
     return row
 
 
-def set_product_market_detail(db: Session, product_id: str, market_code: str, sku: str, cost: float) -> ProductMarketDetail:
+def set_product_market_detail(db: Session, product_id: str, market_code: str, sku: str, cost: float, warehouse: str | None = None) -> ProductMarketDetail:
     if product_id not in PRODUCTS:
         raise ValueError(f"Unknown product_id: {product_id}")
     normalized_sku = sku.strip()
@@ -186,6 +193,7 @@ def set_product_market_detail(db: Session, product_id: str, market_code: str, sk
         raise ValueError("cost must be zero or greater")
 
     code = normalize_market_code(market_code)
+    normalized_warehouse = normalize_warehouse(code, warehouse)
     row = db.scalar(
         select(ProductMarketDetail).where(
             ProductMarketDetail.product_id == product_id,
@@ -193,11 +201,12 @@ def set_product_market_detail(db: Session, product_id: str, market_code: str, sk
         )
     )
     if row is None:
-        row = ProductMarketDetail(product_id=product_id, market_code=code, sku=normalized_sku, cost=cost)
+        row = ProductMarketDetail(product_id=product_id, market_code=code, sku=normalized_sku, cost=cost, warehouse=normalized_warehouse)
         db.add(row)
     else:
         row.sku = normalized_sku
         row.cost = cost
+        row.warehouse = normalized_warehouse
     db.commit()
     db.refresh(row)
     return row

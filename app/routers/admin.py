@@ -28,6 +28,7 @@ from app.services.offer_pricing import (
     set_pack_market_price,
     set_product_market_detail,
 )
+from app.services.warehouses import WAREHOUSES_BY_MARKET
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBasic()
@@ -60,6 +61,7 @@ class CatalogMarketDetailUpdate(BaseModel):
     market_code: str
     sku: str
     cost: float
+    warehouse: str | None = None
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
@@ -288,7 +290,7 @@ def catalog(
         }
         for pack in PACKS.values()
     ]
-    return {"markets": markets, "products": products, "packs": packs}
+    return {"markets": markets, "warehouses": WAREHOUSES_BY_MARKET, "products": products, "packs": packs}
 
 
 @router.post("/markets/{market_code}")
@@ -377,10 +379,10 @@ def update_product_market_detail(
     _: None = Depends(require_admin),
 ) -> dict:
     try:
-        row = set_product_market_detail(db, product_id, payload.market_code, payload.sku, payload.cost)
+        row = set_product_market_detail(db, product_id, payload.market_code, payload.sku, payload.cost, payload.warehouse)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"product_id": row.product_id, "market_code": row.market_code, "sku": row.sku, "cost": row.cost}
+    return {"product_id": row.product_id, "market_code": row.market_code, "sku": row.sku, "cost": row.cost, "warehouse": row.warehouse}
 
 
 @router.post("/catalog/packs/{pack_id}/details")

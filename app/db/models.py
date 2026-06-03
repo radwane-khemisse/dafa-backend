@@ -183,6 +183,7 @@ class ProductMarketDetail(Base):
     market_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     sku: Mapped[str] = mapped_column(String(120), nullable=False)
     cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    warehouse: Mapped[str] = mapped_column(String(160), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 

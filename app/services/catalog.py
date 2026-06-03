@@ -179,6 +179,7 @@ def _item_payload(
         "product_id": product.id,
         "title_ar": product.name_ar,
         "sku": sku_override or str(detail.get("sku") or product.sku),
+        "warehouse": str(detail.get("warehouse") or ""),
         "offer_id": offer_id,
         "quantity": quantity,
         "unit_price": unit_price,

@@ -42,6 +42,7 @@ def create_order(
             get_product_market_details(db, market["code"]),
             get_pack_market_details(db, market["code"]),
         )
+        _assert_single_warehouse(calculated_items)
     except (PhoneValidationError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -94,7 +95,7 @@ def create_order(
     order.event_id = purchase_event_id(order.public_order_id)
 
     for item in calculated_items:
-        order_item = {key: value for key, value in item.items() if key != "sku"}
+        order_item = {key: value for key, value in item.items() if key not in {"sku", "warehouse"}}
         db.add(OrderItem(order_id=order.id, **order_item))
 
     db.commit()
@@ -161,6 +162,13 @@ def _serialize_order(order: Order, items: list[dict], client: dict | None = None
             "status": "",
         },
     }
+
+
+def _assert_single_warehouse(items: list[dict]) -> None:
+    warehouses = {str(item.get("warehouse") or "").strip() for item in items}
+    warehouses.discard("")
+    if len(warehouses) > 1:
+        raise ValueError("Order items must belong to the same warehouse")
 
 
 def run_integrations(order_id: int, payload: dict) -> None:
