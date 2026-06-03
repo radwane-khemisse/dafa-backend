@@ -10,6 +10,7 @@ from app.services.markets import normalize_market_code, valid_market_codes
 VALID_ITEM_TYPES = {"product", "pack"}
 DEFAULT_MARKET_CODES: dict[tuple[str, str], set[str]] = {
     ("product", "mini_portable_blender"): {"ksa"},
+    ("product", "electric_meat_grinder"): {"ksa"},
 }
 
 

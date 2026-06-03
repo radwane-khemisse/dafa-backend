@@ -19,6 +19,7 @@ class Product:
     name_ar: str
     name_en: str
     sku: str
+    offer_ids: tuple[str, ...] = ("one", "two", "three")
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,15 @@ PRODUCTS: dict[str, Product] = {
         name_ar="خلاط عصير محمول ميني وردي",
         name_en="Mini Portable Blender Mixer Pink",
         sku="MP-CUQRQUGWOOXD",
+        offer_ids=("one", "two"),
+    ),
+    "electric_meat_grinder": Product(
+        id="electric_meat_grinder",
+        slug="electric-meat-grinder",
+        name_ar="فرامة لحم كهربائية متعددة الاستخدامات",
+        name_en="Original Multi-Function Electric Meat Grinder",
+        sku="MP-SQYBI6TBLBHD",
+        offer_ids=("one",),
     ),
 }
 
@@ -125,6 +135,8 @@ def calculate_item(
         raise ValueError(f"Unknown offer_id: {offer_id}")
     if offer.id == "pack_pair":
         raise ValueError("pack_pair requires a valid pack_id")
+    if offer.id not in product.offer_ids:
+        raise ValueError(f"Offer is not available for product_id: {product_id}")
     total_price = offer_prices.get(product.id, {}).get(offer.id, offer.total_price) if offer_prices else offer.total_price
     return _item_payload(product, offer.id, offer.quantity, _unit_price(total_price, offer.quantity), total_price, product_details)
 

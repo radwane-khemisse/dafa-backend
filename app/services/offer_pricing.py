@@ -9,16 +9,20 @@ from app.services.warehouses import default_warehouse_for_market, normalize_ware
 
 PRODUCT_OFFER_IDS = ("one", "two", "three")
 RIYADH_WAREHOUSE = "COD NETWORK - Riyadh Warehouse KSA"
+PRODUCT_DEFAULT_OFFER_PRICES: dict[tuple[str, str], int] = {
+    ("electric_meat_grinder", "one"): 259,
+}
 PRODUCT_DEFAULT_WAREHOUSES: dict[tuple[str, str], str] = {
     ("vegetable_cutter", "ksa"): RIYADH_WAREHOUSE,
     ("mini_portable_blender", "ksa"): RIYADH_WAREHOUSE,
+    ("electric_meat_grinder", "ksa"): RIYADH_WAREHOUSE,
 }
 
 
 def default_product_offer_prices() -> dict[str, dict[str, int]]:
     return {
-        product_id: {offer_id: OFFERS[offer_id].total_price for offer_id in PRODUCT_OFFER_IDS}
-        for product_id in PRODUCTS
+        product_id: {offer_id: _default_product_offer_price(product_id, offer_id) for offer_id in product.offer_ids}
+        for product_id, product in PRODUCTS.items()
     }
 
 
@@ -58,11 +62,11 @@ def admin_product_offers(db: Session, product_id: str) -> list[dict]:
             "label_ar": OFFERS[offer_id].label_ar,
             "quantity": OFFERS[offer_id].quantity,
             "prices": {
-                code: overrides.get((offer_id, code), OFFERS[offer_id].total_price)
+                code: overrides.get((offer_id, code), _default_product_offer_price(product_id, offer_id))
                 for code in sorted(valid_market_codes())
             },
         }
-        for offer_id in PRODUCT_OFFER_IDS
+        for offer_id in PRODUCTS[product_id].offer_ids
     ]
 
 
@@ -118,6 +122,10 @@ def _default_pack_sku(pack_id: str) -> str:
     return f"DAFA-{pack_id.upper().replace('-', '-')}"
 
 
+def _default_product_offer_price(product_id: str, offer_id: str) -> int:
+    return PRODUCT_DEFAULT_OFFER_PRICES.get((product_id, offer_id), OFFERS[offer_id].total_price)
+
+
 def _default_product_warehouse(product_id: str, market_code: str) -> str:
     return PRODUCT_DEFAULT_WAREHOUSES.get((product_id, market_code), default_warehouse_for_market(market_code))
 
@@ -146,7 +154,7 @@ def admin_pack_market_details(db: Session, pack_id: str) -> dict[str, dict[str, 
 def set_offer_market_price(db: Session, product_id: str, offer_id: str, market_code: str, price: int) -> OfferMarketPrice:
     if product_id not in PRODUCTS:
         raise ValueError(f"Unknown product_id: {product_id}")
-    if offer_id not in PRODUCT_OFFER_IDS:
+    if offer_id not in PRODUCTS[product_id].offer_ids:
         raise ValueError(f"Unknown product offer_id: {offer_id}")
     if price < 0:
         raise ValueError("price must be zero or greater")
