@@ -47,8 +47,8 @@ PRODUCTS: dict[str, Product] = {
     "vegetable_cutter": Product(
         id="vegetable_cutter",
         slug="vegetable-cutter-set",
-        name_ar="مجموعة تقطيع الخضار الاحترافية",
-        name_en="Professional Vegetable Cutting Set",
+        name_ar="قطاعة الخضار 12 في 1 مع السلة والحافظة",
+        name_en="12-in-1 Vegetable Chopper Set",
         sku="DAFA-VC-4821",
     ),
 }
