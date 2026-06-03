@@ -8,6 +8,11 @@ from app.services.warehouses import default_warehouse_for_market, normalize_ware
 
 
 PRODUCT_OFFER_IDS = ("one", "two", "three")
+RIYADH_WAREHOUSE = "COD NETWORK - Riyadh Warehouse KSA"
+PRODUCT_DEFAULT_WAREHOUSES: dict[tuple[str, str], str] = {
+    ("vegetable_cutter", "ksa"): RIYADH_WAREHOUSE,
+    ("mini_portable_blender", "ksa"): RIYADH_WAREHOUSE,
+}
 
 
 def default_product_offer_prices() -> dict[str, dict[str, int]]:
@@ -64,7 +69,7 @@ def admin_product_offers(db: Session, product_id: str) -> list[dict]:
 def default_product_market_details() -> dict[str, dict[str, dict[str, str | float]]]:
     return {
         product_id: {
-            code: {"sku": product.sku, "cost": 0.0, "warehouse": default_warehouse_for_market(code)}
+            code: {"sku": product.sku, "cost": 0.0, "warehouse": _default_product_warehouse(product_id, code)}
             for code in sorted(valid_market_codes())
         }
         for product_id, product in PRODUCTS.items()
@@ -74,13 +79,13 @@ def default_product_market_details() -> dict[str, dict[str, dict[str, str | floa
 def get_product_market_details(db: Session, market_code: str | None) -> dict[str, dict[str, str | float]]:
     code = normalize_market_code(market_code)
     details = {
-        product_id: {"sku": product.sku, "cost": 0.0, "warehouse": default_warehouse_for_market(code)}
+        product_id: {"sku": product.sku, "cost": 0.0, "warehouse": _default_product_warehouse(product_id, code)}
         for product_id, product in PRODUCTS.items()
     }
     rows = db.scalars(select(ProductMarketDetail).where(ProductMarketDetail.market_code == code)).all()
     for row in rows:
         if row.product_id in details:
-            details[row.product_id] = {"sku": row.sku, "cost": row.cost, "warehouse": row.warehouse or default_warehouse_for_market(code)}
+            details[row.product_id] = {"sku": row.sku, "cost": row.cost, "warehouse": row.warehouse or _default_product_warehouse(row.product_id, code)}
     return details
 
 
@@ -89,11 +94,11 @@ def admin_product_market_details(db: Session, product_id: str) -> dict[str, dict
         raise ValueError(f"Unknown product_id: {product_id}")
     rows = db.scalars(select(ProductMarketDetail).where(ProductMarketDetail.product_id == product_id)).all()
     overrides = {
-        row.market_code: {"sku": row.sku, "cost": row.cost, "warehouse": row.warehouse or default_warehouse_for_market(row.market_code)}
+        row.market_code: {"sku": row.sku, "cost": row.cost, "warehouse": row.warehouse or _default_product_warehouse(product_id, row.market_code)}
         for row in rows
     }
     return {
-        code: overrides.get(code, {"sku": PRODUCTS[product_id].sku, "cost": 0.0, "warehouse": default_warehouse_for_market(code)})
+        code: overrides.get(code, {"sku": PRODUCTS[product_id].sku, "cost": 0.0, "warehouse": _default_product_warehouse(product_id, code)})
         for code in sorted(valid_market_codes())
     }
 
@@ -111,6 +116,10 @@ def admin_pack_prices(db: Session, pack_id: str) -> dict[str, int]:
 
 def _default_pack_sku(pack_id: str) -> str:
     return f"DAFA-{pack_id.upper().replace('-', '-')}"
+
+
+def _default_product_warehouse(product_id: str, market_code: str) -> str:
+    return PRODUCT_DEFAULT_WAREHOUSES.get((product_id, market_code), default_warehouse_for_market(market_code))
 
 
 def get_pack_market_details(db: Session, market_code: str | None) -> dict[str, dict[str, str | float]]:

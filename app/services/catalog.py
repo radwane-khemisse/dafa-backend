@@ -51,6 +51,13 @@ PRODUCTS: dict[str, Product] = {
         name_en="12-in-1 Vegetable Chopper Set",
         sku="DAFA-VC-4821",
     ),
+    "mini_portable_blender": Product(
+        id="mini_portable_blender",
+        slug="mini-portable-blender-pink",
+        name_ar="خلاط عصير محمول ميني وردي",
+        name_en="Mini Portable Blender Mixer Pink",
+        sku="MP-CUQRQUGWOOXD",
+    ),
 }
 
 OFFERS: dict[str, Offer] = {

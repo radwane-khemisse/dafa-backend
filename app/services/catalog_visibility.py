@@ -8,22 +8,34 @@ from app.services.markets import normalize_market_code, valid_market_codes
 
 
 VALID_ITEM_TYPES = {"product", "pack"}
+DEFAULT_MARKET_CODES: dict[tuple[str, str], set[str]] = {
+    ("product", "mini_portable_blender"): {"ksa"},
+}
 
 
 def hidden_catalog_ids(db: Session, market_code: str | None = None) -> dict[str, set[str]]:
     code = normalize_market_code(market_code)
     rows = db.scalars(select(CatalogVisibility).where(CatalogVisibility.hidden.is_(True))).all()
-    market_rows = db.scalars(
-        select(CatalogMarketVisibility).where(
-            CatalogMarketVisibility.market_code == code,
-            CatalogMarketVisibility.visible.is_(False),
-        )
-    ).all()
+    all_market_rows = db.scalars(select(CatalogMarketVisibility)).all()
+    market_rows = [row for row in all_market_rows if row.market_code == code and row.visible is False]
+    configured_items = {(row.item_type, row.item_id) for row in all_market_rows}
+    default_hidden_products = {
+        product_id
+        for product_id in PRODUCTS
+        if ("product", product_id) not in configured_items and code not in _default_market_codes("product", product_id)
+    }
+    default_hidden_packs = {
+        pack_id
+        for pack_id in PACKS
+        if ("pack", pack_id) not in configured_items and code not in _default_market_codes("pack", pack_id)
+    }
     return {
         "product": {row.item_id for row in rows if row.item_type == "product"}
-        | {row.item_id for row in market_rows if row.item_type == "product"},
+        | {row.item_id for row in market_rows if row.item_type == "product"}
+        | default_hidden_products,
         "pack": {row.item_id for row in rows if row.item_type == "pack"}
-        | {row.item_id for row in market_rows if row.item_type == "pack"},
+        | {row.item_id for row in market_rows if row.item_type == "pack"}
+        | default_hidden_packs,
     }
 
 
@@ -60,7 +72,7 @@ def item_market_codes(db: Session, item_type: str, item_id: str) -> list[str]:
         )
     ).all()
     if not rows:
-        return codes
+        return [code for code in codes if code in _default_market_codes(item_type, item_id)]
     visible_by_market = {row.market_code: row.visible for row in rows}
     return [code for code in codes if visible_by_market.get(code, True)]
 
@@ -110,3 +122,7 @@ def _validate_catalog_item(item_type: str, item_id: str) -> None:
         raise ValueError(f"Unknown product_id: {item_id}")
     if item_type == "pack" and item_id not in PACKS:
         raise ValueError(f"Unknown pack_id: {item_id}")
+
+
+def _default_market_codes(item_type: str, item_id: str) -> set[str]:
+    return DEFAULT_MARKET_CODES.get((item_type, item_id), set(valid_market_codes()))
