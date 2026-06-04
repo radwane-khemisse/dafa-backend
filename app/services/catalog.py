@@ -135,7 +135,7 @@ def calculate_item(
         raise ValueError(f"Unknown offer_id: {offer_id}")
     if offer.id == "pack_pair":
         raise ValueError("pack_pair requires a valid pack_id")
-    if offer.id not in product.offer_ids:
+    if offer.id != "upsell_99" and offer.id not in product.offer_ids:
         raise ValueError(f"Offer is not available for product_id: {product_id}")
     total_price = offer_prices.get(product.id, {}).get(offer.id, offer.total_price) if offer_prices else offer.total_price
     return _item_payload(product, offer.id, offer.quantity, _unit_price(total_price, offer.quantity), total_price, product_details)

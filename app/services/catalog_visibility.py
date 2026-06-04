@@ -108,7 +108,7 @@ def product_upsells(db: Session, market_code: str | None = None) -> dict[str, li
     for row in rows:
         if row.source_product_id in PRODUCTS and row.target_product_id in PRODUCTS:
             upsells.setdefault(row.source_product_id, []).append(row.target_product_id)
-    return {source_id: sorted(set(target_ids)) for source_id, target_ids in upsells.items()}
+    return {source_id: sorted(set(target_ids))[:1] for source_id, target_ids in upsells.items()}
 
 
 def product_upsells_by_market(db: Session, product_id: str) -> dict[str, list[str]]:
@@ -118,13 +118,15 @@ def product_upsells_by_market(db: Session, product_id: str) -> dict[str, list[st
     for row in rows:
         if row.target_product_id in PRODUCTS:
             upsells.setdefault(row.market_code, []).append(row.target_product_id)
-    return {code: sorted(set(target_ids)) for code, target_ids in upsells.items()}
+    return {code: sorted(set(target_ids))[:1] for code, target_ids in upsells.items()}
 
 
 def set_product_upsells(db: Session, source_product_id: str, market_code: str | None, target_product_ids: list[str]) -> list[ProductUpsell]:
     _validate_catalog_item("product", source_product_id)
     code = normalize_market_code(market_code)
     selected = list(dict.fromkeys(target_product_ids))
+    if len(selected) > 1:
+        raise ValueError("Only one upsell product can be selected")
     product_details = get_product_market_details(db, code)
     source_warehouse = _product_warehouse(product_details, source_product_id)
 
