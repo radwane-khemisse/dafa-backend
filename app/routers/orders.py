@@ -149,17 +149,33 @@ def _serialize_order(order: Order, items: list[dict], client: dict | None = None
         "event_id": order.event_id,
         "sheet_order": {
             "date": created_at.strftime("%d/%m/%Y"),
-            "orderId": order.public_order_id,
-            "country": market.get("code", order.market_code).upper(),
+            "country": market.get("country_name_en", "") or market.get("code", order.market_code).upper(),
             "market_code": market.get("code", order.market_code),
             "name": order.customer_name,
             "phone": order.phone_digits,
-            "product": "/".join(item["title_ar"] for item in items),
-            "sku": "/".join(item["sku"] for item in items),
-            "quantity": "/".join(str(item["quantity"]) for item in items),
-            "totalprice": order.total,
+            "url": order.source_url,
+            "source_url": order.source_url,
+            "items": [
+                {
+                    "product_id": item["product_id"],
+                    "title_ar": item["title_ar"],
+                    "sku": item["sku"],
+                    "offer_id": item["offer_id"],
+                    "quantity": item["quantity"],
+                    "unit_price": item["unit_price"],
+                    "total_price": item["total_price"],
+                    "is_upsell": item["offer_id"] == "upsell_99",
+                }
+                for item in items
+            ],
+            "upsell_accepted": order.upsell_accepted,
             "currency": order.currency,
-            "status": "",
+            "utm_source": order.utm_source,
+            "utm_medium": order.utm_medium,
+            "utm_campaign": order.utm_campaign,
+            "utm_content": order.utm_content,
+            "utm_term": order.utm_term,
+            "notes": "",
         },
     }
 
