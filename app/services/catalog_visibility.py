@@ -1,10 +1,11 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CatalogMarketVisibility, CatalogVisibility
+from app.db.models import CatalogMarketVisibility, CatalogVisibility, ProductUpsell
 from app.schemas.orders import OrderItemIn
 from app.services.catalog import PACKS, PRODUCTS
 from app.services.markets import normalize_market_code, valid_market_codes
+from app.services.offer_pricing import get_product_market_details
 
 
 VALID_ITEM_TYPES = {"product", "pack"}
@@ -100,6 +101,63 @@ def set_catalog_market_codes(db: Session, item_type: str, item_id: str, market_c
     return rows
 
 
+def product_upsells(db: Session, market_code: str | None = None) -> dict[str, list[str]]:
+    code = normalize_market_code(market_code)
+    rows = db.scalars(select(ProductUpsell).where(ProductUpsell.market_code == code)).all()
+    upsells: dict[str, list[str]] = {}
+    for row in rows:
+        if row.source_product_id in PRODUCTS and row.target_product_id in PRODUCTS:
+            upsells.setdefault(row.source_product_id, []).append(row.target_product_id)
+    return {source_id: sorted(set(target_ids)) for source_id, target_ids in upsells.items()}
+
+
+def product_upsells_by_market(db: Session, product_id: str) -> dict[str, list[str]]:
+    _validate_catalog_item("product", product_id)
+    rows = db.scalars(select(ProductUpsell).where(ProductUpsell.source_product_id == product_id)).all()
+    upsells = {code: [] for code in sorted(valid_market_codes())}
+    for row in rows:
+        if row.target_product_id in PRODUCTS:
+            upsells.setdefault(row.market_code, []).append(row.target_product_id)
+    return {code: sorted(set(target_ids)) for code, target_ids in upsells.items()}
+
+
+def set_product_upsells(db: Session, source_product_id: str, market_code: str | None, target_product_ids: list[str]) -> list[ProductUpsell]:
+    _validate_catalog_item("product", source_product_id)
+    code = normalize_market_code(market_code)
+    selected = list(dict.fromkeys(target_product_ids))
+    product_details = get_product_market_details(db, code)
+    source_warehouse = _product_warehouse(product_details, source_product_id)
+
+    for target_product_id in selected:
+        _validate_catalog_item("product", target_product_id)
+        if target_product_id == source_product_id:
+            raise ValueError("A product cannot upsell itself")
+        if _product_warehouse(product_details, target_product_id) != source_warehouse:
+            raise ValueError("Upsell products must belong to the same warehouse")
+
+    existing = db.scalars(
+        select(ProductUpsell).where(
+            ProductUpsell.source_product_id == source_product_id,
+            ProductUpsell.market_code == code,
+        )
+    ).all()
+    existing_by_target = {row.target_product_id: row for row in existing}
+
+    for row in existing:
+        if row.target_product_id not in selected:
+            db.delete(row)
+
+    rows: list[ProductUpsell] = []
+    for target_product_id in selected:
+        row = existing_by_target.get(target_product_id)
+        if row is None:
+            row = ProductUpsell(source_product_id=source_product_id, target_product_id=target_product_id, market_code=code)
+            db.add(row)
+        rows.append(row)
+    db.commit()
+    return rows
+
+
 def assert_order_items_visible(db: Session, items: list[OrderItemIn], market_code: str | None = None) -> None:
     hidden = hidden_catalog_ids(db, market_code)
     hidden_products = hidden["product"]
@@ -127,3 +185,7 @@ def _validate_catalog_item(item_type: str, item_id: str) -> None:
 
 def _default_market_codes(item_type: str, item_id: str) -> set[str]:
     return DEFAULT_MARKET_CODES.get((item_type, item_id), set(valid_market_codes()))
+
+
+def _product_warehouse(product_details: dict[str, dict[str, str | float]], product_id: str) -> str:
+    return str(product_details.get(product_id, {}).get("warehouse") or "").strip()

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.services.catalog_visibility import hidden_catalog_ids
+from app.services.catalog_visibility import hidden_catalog_ids, product_upsells
 from app.services.markets import get_market_settings, list_market_settings
 from app.services.offer_pricing import get_offer_prices, get_pack_prices, get_product_market_details
 
@@ -36,4 +36,5 @@ def visibility(market: str = Query(default="ksa"), db: Session = Depends(get_db)
             product_id: str(detail.get("warehouse") or "")
             for product_id, detail in product_details.items()
         },
+        "product_upsells": product_upsells(db, market_settings["code"]),
     }

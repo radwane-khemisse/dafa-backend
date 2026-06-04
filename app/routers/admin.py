@@ -14,8 +14,10 @@ from app.services.catalog import PACKS, PRODUCTS
 from app.services.catalog_visibility import (
     get_catalog_visibility,
     item_market_codes,
+    product_upsells_by_market,
     set_catalog_hidden,
     set_catalog_market_codes,
+    set_product_upsells,
 )
 from app.services.markets import list_market_settings, normalize_market_code, set_market_settings
 from app.services.offer_pricing import (
@@ -62,6 +64,11 @@ class CatalogMarketDetailUpdate(BaseModel):
     sku: str
     cost: float
     warehouse: str | None = None
+
+
+class ProductUpsellsUpdate(BaseModel):
+    market_code: str
+    product_ids: list[str]
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)) -> None:
@@ -270,6 +277,7 @@ def catalog(
             "name_en": product.name_en,
             "hidden": visibility.get(("product", product.id), False),
             "market_codes": item_market_codes(db, "product", product.id),
+            "upsell_product_ids": product_upsells_by_market(db, product.id),
             "offers": admin_product_offers(db, product.id),
             "details": admin_product_market_details(db, product.id),
         }
@@ -383,6 +391,20 @@ def update_product_market_detail(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"product_id": row.product_id, "market_code": row.market_code, "sku": row.sku, "cost": row.cost, "warehouse": row.warehouse}
+
+
+@router.post("/catalog/products/{product_id}/upsells")
+def update_product_upsells(
+    product_id: str,
+    payload: ProductUpsellsUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin),
+) -> dict:
+    try:
+        rows = set_product_upsells(db, product_id, payload.market_code, payload.product_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"product_id": product_id, "market_code": payload.market_code, "product_ids": [row.target_product_id for row in rows]}
 
 
 @router.post("/catalog/packs/{pack_id}/details")
