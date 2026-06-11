@@ -22,7 +22,7 @@ class TotalsIn(BaseModel):
     delivery_fee: int = 0
     discount: int = 0
     total: int = 0
-    currency: str = "ريال"
+    currency: str = "SAR"
 
 
 class ClientIn(BaseModel):

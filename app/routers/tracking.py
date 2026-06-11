@@ -77,6 +77,7 @@ def create_tracking_event(
         "phone_digits": phone_digits,
         "value": payload.value,
         "currency": payload.currency,
+        "market_code": market_code,
         "items": [item.model_dump() for item in payload.items],
         "product_id": payload.product_id,
         "content_name": payload.content_name,

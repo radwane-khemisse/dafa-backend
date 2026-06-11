@@ -28,7 +28,7 @@ META_EVENTS: dict[CanonicalEvent, str] = {
 }
 
 TIKTOK_EVENTS: dict[CanonicalEvent, str] = {
-    "PageView": "Pageview",
+    "PageView": "PageView",
     "ViewProduct": "ViewContent",
     "ViewContent": "ViewContent",
     "AddToCart": "AddToCart",
@@ -51,6 +51,15 @@ SNAP_EVENTS: dict[CanonicalEvent, str] = {
     "UpsellView": "CUSTOM_EVENT_1",
     "UpsellAccepted": "CUSTOM_EVENT_2",
     "UpsellRejected": "CUSTOM_EVENT_3",
+}
+
+MARKET_CURRENCY_CODES = {
+    "ksa": "SAR",
+    "kwt": "KWD",
+    "uae": "AED",
+    "qat": "QAR",
+    "bhr": "BHD",
+    "omn": "OMR",
 }
 
 
@@ -86,6 +95,13 @@ def normalize_name(value: str | None) -> str | None:
     return compact or None
 
 
+def normalize_currency_code(value: str | None, market_code: str | None = None) -> str:
+    cleaned = (value or "").strip().upper()
+    if re.fullmatch(r"[A-Z]{3}", cleaned):
+        return cleaned
+    return MARKET_CURRENCY_CODES.get((market_code or "").lower(), "SAR")
+
+
 def hashed_name_parts(full_name: str | None) -> dict[str, str]:
     parts = [normalize_name(part) for part in (full_name or "").split()]
     parts = [part for part in parts if part]
@@ -102,10 +118,19 @@ def hashed_phone(phone_digits: str | None, phone_e164: str | None = None) -> str
     return sha256_hex(normalized) if normalized else None
 
 
-def hash_tiktok_phone(phone_digits: str | None, phone_e164: str | None = None) -> str | None:
-    # TikTok requires SHA-256 for phone advanced matching. Use country-code digits
-    # without symbols to match Meta/Snap normalization and avoid hashing a local form.
-    return hashed_phone(phone_digits, phone_e164)
+def normalize_phone_e164(value: str | None) -> str | None:
+    digits = normalize_phone_digits(value)
+    return f"+{digits}" if digits else None
+
+
+def hash_tiktok_phone(phone_digits: str | None, phone_e164: str | None = None, mode: str = "e164") -> str | None:
+    # TikTok requires SHA-256 for phone advanced matching. Keep the format
+    # configurable because diagnostics can be sensitive to E.164 vs digits-only.
+    if mode == "digits":
+        normalized = normalize_phone_digits(phone_digits or phone_e164)
+    else:
+        normalized = normalize_phone_e164(phone_e164 or phone_digits)
+    return sha256_hex(normalized) if normalized else None
 
 
 def build_contents(items: list[dict[str, Any]] | None, content_ids: list[str] | None = None) -> list[dict[str, Any]]:
@@ -151,7 +176,8 @@ def build_tracking_event_from_order(payload: dict[str, Any]) -> dict[str, Any]:
         "phone_e164": payload.get("phone_e164"),
         "phone_digits": payload.get("phone_digits"),
         "value": payload.get("total"),
-        "currency": payload.get("currency") or "ريال",
+        "currency": normalize_currency_code(payload.get("currency"), payload.get("market_code")),
+        "market_code": payload.get("market_code"),
         "items": payload.get("items") or [],
         "order_id": payload.get("public_order_id"),
         "fbp": payload.get("fbp"),
@@ -180,7 +206,7 @@ def build_meta_payload(event: dict[str, Any], settings: Settings) -> dict[str, A
     items = event.get("items") or []
     content_ids = event.get("content_ids") or ([event["product_id"]] if event.get("product_id") else [])
     custom_data: dict[str, Any] = {
-        "currency": event.get("currency") or "ريال",
+        "currency": normalize_currency_code(event.get("currency"), event.get("market_code")),
         "value": event.get("value"),
         "content_ids": [item.get("product_id") for item in items if item.get("product_id")] or content_ids,
         "content_name": event.get("content_name"),
@@ -211,7 +237,11 @@ def build_meta_payload(event: dict[str, Any], settings: Settings) -> dict[str, A
 
 def build_tiktok_payload(event: dict[str, Any], settings: Settings) -> dict[str, Any]:
     user: dict[str, Any] = {
-        "phone_number": hash_tiktok_phone(event.get("phone_digits"), event.get("phone_e164")),
+        "phone_number": hash_tiktok_phone(
+            event.get("phone_digits"),
+            event.get("phone_e164"),
+            settings.tiktok_phone_hash_mode,
+        ),
         "ttp": event.get("ttp"),
     }
     user = {key: value for key, value in user.items() if value}
@@ -232,7 +262,7 @@ def build_tiktok_payload(event: dict[str, Any], settings: Settings) -> dict[str,
     items = event.get("items") or []
     content_ids = event.get("content_ids") or ([event["product_id"]] if event.get("product_id") else [])
     properties: dict[str, Any] = {
-        "currency": event.get("currency") or "ريال",
+        "currency": normalize_currency_code(event.get("currency"), event.get("market_code")),
         "value": event.get("value"),
         "content_type": "product",
         "contents": build_tiktok_contents(items, content_ids),
@@ -268,7 +298,7 @@ def build_snap_payload(event: dict[str, Any], settings: Settings) -> dict[str, A
     items = event.get("items") or []
     content_ids = event.get("content_ids") or ([event["product_id"]] if event.get("product_id") else [])
     custom_data: dict[str, Any] = {
-        "currency": event.get("currency") or "ريال",
+        "currency": normalize_currency_code(event.get("currency"), event.get("market_code")),
         "value": event.get("value"),
         "content_ids": [item.get("product_id") for item in items if item.get("product_id")] or content_ids,
         "contents": build_contents(items, content_ids),
@@ -304,6 +334,8 @@ def send_meta_event(event: dict[str, Any], settings: Settings) -> tuple[bool, in
 def send_tiktok_event(event: dict[str, Any], settings: Settings) -> tuple[bool, int | None, str | None]:
     if not settings.enable_capi or not settings.tiktok_pixel_code or not settings.tiktok_access_token:
         return False, None, "TikTok Events API disabled or missing credentials."
+    if event["event_name"] == "PageView":
+        return False, None, "TikTok PageView is sent by the browser pixel only to avoid duplicate page views."
     return _post_json(
         settings.tiktok_events_api_url,
         build_tiktok_payload(event, settings),
